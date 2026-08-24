@@ -1,0 +1,302 @@
+--- PAGE 1 ---
+FRONTEND DEVELOPER TECHNICAL
+ASSESSMENT
+Responsive AI Content GENERATION Web Page
+ABOUT TARUM
+Tarum is a Product based startup building an AI-powered platform (Fomi) for image and video
+generation. Users can create, edit, transform, enhance, and upscale images and videos using
+state-of-the-art AI models through a simple and intuitive interface. Tarum is currently in beta
+testing, with the goal of becoming one of the leading AI creative platforms globally. The company is
+based at the National Science & Technology Park (NSTP), Islamabad.
+Website: Fomi.art
+The platform is designed for creators, designers, marketers, filmmakers, agencies, and social
+media users who want to turn ideas into professional-quality visual content quickly and easily.
+Key features include:
+• Text-to-Image Generation
+• AI Image/Video Editing
+• Text-to-Video Generation
+• AI Image/Video Upscaling
+• Templates and Presets
+Our mission is to become one of the world's leading AI creative platforms, helping users transform
+imagination into professional-quality images and videos.
+OVERVIEW
+The goal of this assessment is to evaluate your ability to build a responsive, production-quality
+frontend using Next.js. A design mockup of an AI content generation web page is given below. Your
+task is to accurately implement this design as a fully responsive web page.
+TECH STACK (REQUIRED)
+● Framework: Next.js
+
+--- PAGE 2 ---
+● Language: JavaScript
+● Styling: CSS Modules, Tailwind CSS
+● Version Control: GitHub
+Overview
+This assessment evaluates far more than your ability to write React code. We're looking for
+frontend engineers who care deeply about product quality. Great frontend engineering is not
+just about implementation. It's about creating software that feels fast, intuitive, polished and
+enjoyable to use. We want to see how you think about:
+• user experience
+• interaction design
+• responsiveness
+• performance
+• attention to detail
+• component architecture
+• frontend craftsmanship
+Design Philosophy
+When building Fomi, we follow a few simple principles.
+• Maximum capability. Minimum complexity.
+• Every pixel should have a purpose.
+• Design for professionals, not beginners.
+• Beautiful software should feel effortless.
+• The workspace is the hero—not the marketing page.
+The Challenge
+This assessment consists of two independent tasks.
+
+--- PAGE 3 ---
+Part A — Product Implementation
+• You will be provided with a mockup design.
+• Your task is to implement it as accurately as possible using Next.js.
+• Deploy final design on Vercel
+• We are not simply evaluating whether the page looks correct.
+• We are evaluating the overall quality of your frontend engineering.
+• You may make minor designs tweaks, to display your creativity.
+Requirements
+Implement the design with close attention to:
+• layout
+• spacing
+• typography
+• hierarchy
+• colors
+• responsiveness
+• animations
+• interactions
+The final product should feel polished enough for production.
+Technical Stack
+Required:
+• Next.js
+• JavaScript
+• Tailwind CSS or CSS Modules
+• Vercel deployment
+Version control: GitHub
+
+--- PAGE 4 ---
+Responsiveness
+Your implementation should work seamlessly across:
+• Mobile
+• Tablet
+• Desktop
+• Large Displays
+The experience should feel intentionally designed for each screen size rather than simply scaled.
+Avoid:
+• horizontal scrolling
+• overlapping layouts
+• inconsistent spacing
+• broken interactions
+Dummy Backend
+Create a simple mocked API that returns generated images and videos. The objective is not
+backend complexity. It is demonstrating a realistic frontend architecture.
+Feel free to use:
+• mock JSON
+• local API routes
+• static data
+Code Quality
+We place significant importance on maintainable frontend architecture. Your submission should
+demonstrate:
+
+--- PAGE 5 ---
+• reusable components
+• modular design
+• clean folder organization
+• meaningful naming
+• readable code
+• scalable architecture
+Avoid unnecessary complexity.
+Performance
+Optimize your implementation wherever appropriate. Examples include:
+• next/image
+• lazy loading
+• code splitting where appropriate
+• avoiding unnecessary renders
+We care about perceived performance as much as benchmarks.
+Accessibility
+At minimum, consider:
+• semantic HTML
+• keyboard navigation
+• labels
+• alt text
+• focus states
+• readable contrast
+Accessibility should be built in—not added later.
+
+--- PAGE 6 ---
+Attention to Detail
+This is one of the highest weighted sections. We notice details.
+Examples:
+• hover behaviour
+• loading states
+• spacing consistency
+• alignment
+• animation timing
+• button feedback
+• empty states
+• typography rhythm
+Small details create premium software.
+PART B — PRODUCT THINKING CHALLENGE
+Great frontend engineers do more than translate designs into code—they improve products.
+This challenge is designed to evaluate your product thinking, engineering judgment, attention
+to detail, and frontend craftsmanship.
+Your Challenge
+Imagine you have just joined Tarum as a Frontend Engineer. We ask you to redesign one of the
+most important pages in our product. pick one:
+1. Image Generation Workspace
+2. Video Generation Workspace
+3. Image Editing Workspace
+
+--- PAGE 7 ---
+Do not simply recreate existing products such as Higgsfield, Krea, Leonardo.ai, OpenArt or
+ImagineArt. Design and build your own version of the workspace. Assume AI models continue
+improving rapidly over the next few years. Rather than designing another AI generator, think
+about what the future of AI creative software should feel like.
+Design Assumptions
+Assume the user:
+• Has already signed in.
+• Is returning to continue an existing creative project.
+• Creates visual content professionally.
+• Spends several hours every day inside the application.
+Do not design a marketing landing page. Design the workspace where professional creators
+actually spend their time.
+Design Philosophy
+We appreciate interfaces that balance the simplicity of:
+• Instagram
+• Pinterest
+with the richness, immersion and capability of products such as:
+• Magnific
+• Higgsfield
+• ImagineArt
+• Leonardo.ai
+• Krea
+• Figma
+• Cursor
+
+--- PAGE 8 ---
+These products should be used only as inspiration. We are not looking for another version of
+existing AI generators. Original thinking will receive significant weighting.
+Product Principles
+When making design decisions, remember:
+• Maximum capability. Minimum complexity.
+• Every pixel should have a purpose.
+• Design for professionals, not beginners.
+• The workspace is the hero—not the homepage.
+• Power should feel effortless.
+What We're Looking For
+We're interested in understanding:
+• How you organize complex interfaces.
+• How you prioritize information.
+• How you improve creative workflows.
+• How you balance simplicity with powerful functionality.
+• How you think about product design—not just visual aesthetics.
+A beautiful interface without strong UX or product thinking will not score highly.
+Required Deliverables
+1. Frontend Implementation
+Build a fully responsive frontend implementation of your proposed workspace. We encourage
+thoughtful interactions, animations, responsiveness, accessibility, and polished details.
+
+--- PAGE 9 ---
+2. Product Thinking Document
+Along with your submission, include a short document answering the following questions.
+1. What problem were you trying to solve?
+What type of user did you design for?
+2. What are the three most important UX decisions you made?
+Why?
+3. Which features did you intentionally leave out?
+Why did you decide not to include them?
+4. Which existing products inspired your thinking?
+What did you like?
+What would you improve?
+5. If you had another month to work on this product, what would you improve?
+6. What is the single feature or workflow you believe differentiates your workspace from
+existing AI creative platforms?
+
+--- PAGE 10 ---
+Design Trade-offs
+Every great product involves compromise. We are interested in understanding:
+• what you prioritized,
+• what you simplified,
+• what you removed,
+• and why.
+There is no perfect interface. Strong product engineers know what not to build.
+Engineering Expectations
+Your submission should demonstrate:
+• Clean architecture
+• Reusable components
+• Maintainable code
+• Responsive layouts
+• Accessibility
+• Smooth interactions
+• Thoughtful animations
+• Excellent attention to detail
+• Good frontend performance
+Evaluation Criteria
+Category Points
+Product Thinking 20
+Frontend Engineering 20
+Code Quality & Architecture 15
+
+--- PAGE 11 ---
+UX & Interaction 15
+Visual Polish & Attention to Detail 10
+Originality 10
+Product Thinking Document 10
+Bonus (+40)
+Interactive (+10)
+Beautiful micro-interactions.
+Meaningful transitions.
+Exceptional Product Thinking (+15)
+A creative workspace that demonstrates strong UX thinking.
+Original Creative Direction (+15)
+A unique vision of what AI creative software could become.
+Common Mistakes
+Avoid:
+• Copying existing AI generators.
+• Generic AI-generated layouts.
+• Adding unnecessary features.
+• Cluttered interfaces.
+• Empty minimalism.
+• Weak hierarchy.
+• Poor spacing.
+
+--- PAGE 12 ---
+• Prioritizing aesthetics over usability.
+Important
+You are welcome to use AI tools during this assessment. However, AI is only one tool. During the
+interview, we will discuss your submission in detail and ask you to explain your product
+decisions, engineering choices, and design rationale. We are evaluating your thinking—not
+whether AI helped you write code or generate ideas.
+Design References:
+Mockup design:
+
+--- PAGE 13 ---
+While creating your own unique idea you can take reference from following links:
+●
+https://higgsfield.ai/generate
+●
+https://www.krea.ai/image
+
+--- PAGE 14 ---
+●
+https://openart.ai/suite/create-image/wan2-7-image?projectId=37mpOlwBBkpjGrkgyU2J
+●
+https://www.magnific.com/app/ai-image-generator#from_element=mainmenu
+Final Advice
+Imagine this is the software you would personally use every day if creating AI images and videos
+professionally. Build something that feels:
+
+--- PAGE 15 ---
+• Original
+• Thoughtful
+• Fast
+• Beautiful
+• Professional
+• Immersive
+Most importantly, build something that solves real user problems—not just something that
+looks futuristic.
