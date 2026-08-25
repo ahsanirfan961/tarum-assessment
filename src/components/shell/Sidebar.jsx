@@ -123,12 +123,15 @@ function SidebarItem({ item, collapsed, active }) {
     </>
   );
 
+  // Collapsed rail hides the text label, so the icon alone must carry the
+  // accessible name — `title` is a hover tooltip, not a substitute for it.
   if (item.href) {
     return (
       <Link
         href={item.href}
         className={className}
         aria-current={active ? "page" : undefined}
+        aria-label={collapsed ? item.label : undefined}
         title={collapsed ? item.label : undefined}
       >
         {content}
@@ -141,6 +144,7 @@ function SidebarItem({ item, collapsed, active }) {
       type="button"
       onClick={item.onClick}
       className={className}
+      aria-label={collapsed ? item.label : undefined}
       title={collapsed ? item.label : undefined}
     >
       {content}

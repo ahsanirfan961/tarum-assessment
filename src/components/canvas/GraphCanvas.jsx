@@ -93,6 +93,14 @@ export default function GraphCanvas({ collection }) {
   }, [collection.nodes, selectedNodeId, positionById]);
 
   const hoveredEdge = edges.find((e) => e.id === hoveredEdgeId) ?? null;
+
+  // Lets keyboard focus trigger the same edge tooltip pointer hover does, so
+  // tabbing through the tree reveals each prompt without needing a mouse.
+  const edgeIdByChild = useMemo(
+    () => new Map(edges.map((e) => [e.childId, e.id])),
+    [edges]
+  );
+
   const litEdges = useMemo(() => {
     if (!focus) return new Set();
     return new Set(
@@ -168,6 +176,9 @@ export default function GraphCanvas({ collection }) {
                 onToggleReference={toggleReference}
                 onToggleAssembly={
                   isVideo ? (id) => toggleInAssembly(collection.id, id) : undefined
+                }
+                onFocusChange={(focused) =>
+                  setHoveredEdge(focused ? edgeIdByChild.get(node.id) ?? null : null)
                 }
               />
             </div>

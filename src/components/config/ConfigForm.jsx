@@ -68,7 +68,10 @@ export default function ConfigForm({ kind }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex h-full flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
+      {/* overscroll-contain: this panel scrolls independently of the page (or,
+          in the mobile sheet, of the canvas behind it) and should never hand
+          off an over-scroll to whatever is behind it. */}
+      <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-3">
         <AnimatePresence initial={false}>
           {parent && (
             <motion.div
@@ -150,12 +153,12 @@ export default function ConfigForm({ kind }) {
             rows={5}
             placeholder={
               parent
-                ? "What should change in this take?"
+                ? "What should change in this take…"
                 : isVideo
-                  ? "Describe the shot, the motion, and the light."
-                  : "Describe the frame, the light, and the mood."
+                  ? "Describe the shot, the motion, and the light…"
+                  : "Describe the frame, the light, and the mood…"
             }
-            className="w-full resize-none rounded-[var(--r-panel)] border border-border bg-surface p-3 text-[13px] leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-border-strong focus:border-accent focus:outline-none"
+            className="w-full resize-none rounded-[var(--r-panel)] border border-border bg-surface p-3 text-[13px] leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           />
         </div>
 

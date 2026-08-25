@@ -22,6 +22,7 @@ function GraphNode({
   onSelect,
   onToggleReference,
   onToggleAssembly,
+  onFocusChange,
   index,
 }) {
   const reduce = useReducedMotion();
@@ -55,6 +56,8 @@ function GraphNode({
         <button
           type="button"
           onClick={() => onSelect(node.id)}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => onFocusChange?.(false)}
           aria-pressed={selected}
           aria-label={`Take from prompt: ${node.prompt}`}
           className={`relative block h-full w-full overflow-hidden rounded-[var(--r-panel)] border bg-surface-2 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 ${

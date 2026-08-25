@@ -39,7 +39,10 @@ export default function ProjectsPage() {
                   href={`/project/${project.id}/image`}
                   className="group block focus-visible:outline-none"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-panel)] transition-shadow duration-300 group-hover:shadow-[var(--shadow-lift)] group-focus-visible:shadow-[var(--shadow-lift)]">
+                  {/* Keyboard focus gets its own ring on top of the hover
+                      shadow, so a focused card reads as more prominent than a
+                      merely-hovered one rather than identical to it. */}
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-panel)] ring-2 ring-transparent ring-offset-2 ring-offset-bg transition-[box-shadow] duration-300 group-hover:shadow-[var(--shadow-lift)] group-focus-visible:shadow-[var(--shadow-lift)] group-focus-visible:ring-accent">
                     {project.cover ? (
                       <Image
                         src={project.cover}

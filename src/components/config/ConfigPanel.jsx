@@ -67,14 +67,16 @@ export function ConfigSheet({ kind }) {
       <AnimatePresence>
         {open && (
           <>
-            <motion.div
+            <motion.button
               key="scrim"
+              type="button"
+              aria-label="Close composer"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-30 bg-black/40"
+              className="fixed inset-0 z-30 cursor-default bg-black/40"
             />
             <motion.div
               key="sheet"
@@ -84,7 +86,9 @@ export function ConfigSheet({ kind }) {
               animate={reduce ? { opacity: 1 } : { y: 0 }}
               exit={reduce ? { opacity: 0 } : { y: "100%" }}
               transition={reduce ? { duration: 0.15 } : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed inset-x-0 bottom-0 z-40 flex h-[78dvh] flex-col rounded-t-2xl border-t border-border bg-bg"
+              /* overscroll-contain keeps an over-scroll at the top/bottom of the
+                 sheet from bubbling into a page scroll behind it. */
+              className="fixed inset-x-0 bottom-0 z-40 flex h-[78dvh] flex-col overscroll-contain rounded-t-2xl border-t border-border bg-bg"
             >
               <div className="flex h-11 shrink-0 items-center justify-between pl-4 pr-2">
                 <span className="text-[11px] font-semibold tracking-wide text-text-muted">
