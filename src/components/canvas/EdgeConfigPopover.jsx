@@ -107,13 +107,19 @@ export default function EdgeConfigPopover({
             </button>
           </div>
 
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-border pt-2.5">
+          {/* Label above value rather than sharing a line: side by side, a
+              long label and a long value fight over one row's width and both
+              end up truncated to nothing legible. Stacked, each gets the
+              full column. */}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-t border-border pt-2.5">
             {rows.map((row) => (
-              <div key={row.label} className="flex items-baseline justify-between gap-2">
+              <div key={row.label} className="flex min-w-0 flex-col gap-0.5">
                 <dt className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
                   {row.label}
                 </dt>
-                <dd className="truncate text-[12px] font-medium text-text">{row.value}</dd>
+                <dd className="truncate text-[12px] font-medium text-text" title={row.value}>
+                  {row.value}
+                </dd>
               </div>
             ))}
           </dl>

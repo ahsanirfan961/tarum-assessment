@@ -42,11 +42,13 @@ export default function SearchOverlay({ value, onChange, onClose }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative h-fit w-full max-w-lg overflow-hidden overscroll-contain rounded-[var(--r-panel)] border border-border bg-surface shadow-[var(--shadow-lift)]"
+        /* The focus ring belongs on the whole card, not on the input row.
+           On the row it drew a rounded rect around only the top section,
+           colliding with the card's own border and cutting a hard edge
+           across the panel just above the hint text. */
+        className="relative h-fit w-full max-w-lg overflow-hidden overscroll-contain rounded-[var(--r-panel)] border border-border bg-surface shadow-[var(--shadow-lift)] ring-accent/35 focus-within:border-accent focus-within:ring-2"
       >
-        {/* focus-within stands in for the input's own focus ring, since the
-            input itself sits flush against the icon with no border of its own. */}
-        <div className="flex items-center gap-2.5 rounded-t-[var(--r-panel)] px-3.5 ring-inset ring-accent/35 focus-within:ring-2">
+        <div className="flex items-center gap-2.5 px-3.5">
           <MagnifyingGlass size={17} aria-hidden className="shrink-0 text-text-muted" />
           <input
             ref={inputRef}

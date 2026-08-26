@@ -15,7 +15,7 @@ import IconButton from "@/components/ui/IconButton";
 import GraphNode from "./GraphNode";
 import EdgeConfigPopover from "./EdgeConfigPopover";
 
-const EDGE_WIDGET_W = 260;
+const EDGE_WIDGET_W = 300;
 
 /**
  * The lineage canvas.
