@@ -16,6 +16,7 @@ import IconButton from "@/components/ui/IconButton";
 export default function AssemblyStrip({ collection }) {
   const toggleInAssembly = useWorkspace((s) => s.toggleInAssembly);
   const reorderAssembly = useWorkspace((s) => s.reorderAssembly);
+  const openViewer = useWorkspace((s) => s.openViewer);
   const reduce = useReducedMotion();
 
   const assembly = collection.assembly ?? [];
@@ -56,7 +57,13 @@ export default function AssemblyStrip({ collection }) {
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className="group relative shrink-0"
               >
-                <div className="relative h-16 w-28 overflow-hidden rounded-[var(--r-control)] border border-border">
+                <button
+                  type="button"
+                  onClick={() => openViewer(clip.id)}
+                  aria-label={`Open clip ${i + 1} in the viewer`}
+                  title={`Open clip ${i + 1} in the viewer`}
+                  className="relative block h-16 w-28 overflow-hidden rounded-[var(--r-control)] border border-border"
+                >
                   <Image
                     src={clip.url}
                     alt=""
@@ -70,7 +77,7 @@ export default function AssemblyStrip({ collection }) {
                   <span className="pointer-events-none absolute left-1 top-1 grid h-4 w-4 place-items-center rounded bg-black/65 font-mono text-[9px] text-white">
                     {i + 1}
                   </span>
-                </div>
+                </button>
 
                 <div className="mt-1 flex items-center justify-center gap-0.5">
                   <IconButton

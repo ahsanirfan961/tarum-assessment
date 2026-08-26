@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { motion } from "motion/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, useTransform } from "motion/react";
 import {
   ArrowsInSimple,
   GitBranch,
@@ -10,9 +10,12 @@ import {
 } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import { usePanZoom } from "@/hooks/usePanZoom";
-import { ancestorPath, layoutLineage, NODE_H, NODE_W } from "@/lib/layout/tidyTree";
+import { ancestorPath, layoutLineage, NODE_H } from "@/lib/layout/tidyTree";
 import IconButton from "@/components/ui/IconButton";
 import GraphNode from "./GraphNode";
+import EdgeConfigPopover from "./EdgeConfigPopover";
+
+const EDGE_WIDGET_W = 260;
 
 /**
  * The lineage canvas.
@@ -29,6 +32,7 @@ export default function GraphCanvas({ collection }) {
   const setHoveredEdge = useWorkspace((s) => s.setHoveredEdge);
   const toggleReference = useWorkspace((s) => s.toggleReference);
   const toggleInAssembly = useWorkspace((s) => s.toggleInAssembly);
+  const openViewer = useWorkspace((s) => s.openViewer);
 
   const isVideo = collection.kind === "video";
   const assembly = collection.assembly ?? [];
@@ -42,6 +46,31 @@ export default function GraphCanvas({ collection }) {
     contentWidth: width,
     contentHeight: height,
   });
+
+  // Counter-scales the pinned config popover against canvas zoom, so its text
+  // stays a constant, readable size whether the tree is fit to the screen at
+  // 25% or zoomed in on one branch at 150%. The popover's position still
+  // tracks pan/zoom normally, since it's positioned inside the same
+  // transformed layer as everything else — only its own scale is corrected.
+  const inverseScale = useTransform(scale, (s) => 1 / s);
+
+  // Pinned by clicking a hover tooltip's "View full config". Local to this
+  // canvas: nothing outside the graph needs to know a popover is open.
+  const [pinnedEdgeId, setPinnedEdgeId] = useState(null);
+
+  // Hiding the tooltip on a short delay, cancelled if the pointer lands back
+  // on either the edge or the tooltip itself, is what lets the mouse actually
+  // cross the gap between them to reach "View full config" — hiding the
+  // instant the pointer leaves the thin edge path would close it mid-travel.
+  const hideTimeout = useRef(null);
+  const cancelHide = useCallback(() => {
+    if (hideTimeout.current) clearTimeout(hideTimeout.current);
+  }, []);
+  const scheduleHide = useCallback(() => {
+    cancelHide();
+    hideTimeout.current = setTimeout(() => setHoveredEdge(null), 200);
+  }, [cancelHide, setHoveredEdge]);
+  useEffect(() => cancelHide, [cancelHide]);
 
   // Focus mode: with a node selected, keep its ancestors, itself and its direct
   // children lit, and drop everything else back. This is what keeps a tree
@@ -92,7 +121,14 @@ export default function GraphCanvas({ collection }) {
     return { localRefEdges: local, offCanvasRefCount: offCanvas };
   }, [collection.nodes, selectedNodeId, positionById]);
 
-  const hoveredEdge = edges.find((e) => e.id === hoveredEdgeId) ?? null;
+  // One widget, two states: pinned wins over merely hovered, so clicking to
+  // expand never gets undercut by the mouse drifting off a different edge.
+  const activeEdgeId = pinnedEdgeId ?? hoveredEdgeId;
+  const activeEdge = activeEdgeId ? edges.find((e) => e.id === activeEdgeId) ?? null : null;
+  const activeNode = activeEdge
+    ? collection.nodes.find((n) => n.id === activeEdge.childId) ?? null
+    : null;
+  const isExpanded = Boolean(pinnedEdgeId);
 
   // Lets keyboard focus trigger the same edge tooltip pointer hover does, so
   // tabbing through the tree reveals each prompt without needing a mouse.
@@ -108,12 +144,26 @@ export default function GraphCanvas({ collection }) {
     );
   }, [edges, focus]);
 
+  // Clicking the canvas backdrop dismisses a pinned popover the same way it
+  // would dismiss any other floating panel; clicking a node or the popover
+  // itself (both opt out via data-no-pan / data-graph-node) leaves it open.
+  const onViewportPointerDown = (e) => {
+    if (!e.target.closest("[data-graph-node], [data-no-pan]")) {
+      setPinnedEdgeId(null);
+    }
+    handlers.onPointerDown(e);
+  };
+
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden">
       <div
         ref={viewportRef}
         {...handlers}
-        className="h-full w-full cursor-grab touch-none active:cursor-grabbing"
+        onPointerDown={onViewportPointerDown}
+        /* select-none: without it, dragging to pan also drags a text/image
+           selection across every node the pointer crosses, same as selecting
+           text on a page. */
+        className="h-full w-full select-none touch-none cursor-grab active:cursor-grabbing"
       >
         <motion.div
           style={{ x, y, scale, width, height, transformOrigin: "0 0" }}
@@ -143,8 +193,11 @@ export default function GraphCanvas({ collection }) {
                     stroke="transparent"
                     strokeWidth={22}
                     className="pointer-events-auto cursor-help"
-                    onPointerEnter={() => setHoveredEdge(edge.id)}
-                    onPointerLeave={() => setHoveredEdge(null)}
+                    onPointerEnter={() => {
+                      cancelHide();
+                      setHoveredEdge(edge.id);
+                    }}
+                    onPointerLeave={scheduleHide}
                   />
                 </g>
               );
@@ -177,6 +230,7 @@ export default function GraphCanvas({ collection }) {
                 onToggleAssembly={
                   isVideo ? (id) => toggleInAssembly(collection.id, id) : undefined
                 }
+                onOpenViewer={openViewer}
                 onFocusChange={(focused) =>
                   setHoveredEdge(focused ? edgeIdByChild.get(node.id) ?? null : null)
                 }
@@ -184,21 +238,25 @@ export default function GraphCanvas({ collection }) {
             </div>
           ))}
 
-          {/* The prompt that produced the child, shown on its incoming edge. */}
-          {hoveredEdge && (
-            <div
-              style={{
-                position: "absolute",
-                left: hoveredEdge.label.x,
-                top: hoveredEdge.label.y,
-                width: NODE_W + 88,
+          {/* The prompt that produced the child, on its incoming edge: a
+              compact preview by default, expanding in place into the full
+              config on click. */}
+          {activeNode && (
+            <EdgeConfigPopover
+              key={activeEdge.id}
+              node={activeNode}
+              position={activeEdge.label}
+              width={EDGE_WIDGET_W}
+              inverseScale={inverseScale}
+              expanded={isExpanded}
+              onExpand={() => {
+                cancelHide();
+                setPinnedEdgeId(activeEdge.id);
               }}
-              className="pointer-events-none -translate-x-1/2 -translate-y-1/2"
-            >
-              <p className="rounded-[var(--r-control)] border border-border bg-surface px-2.5 py-1.5 text-[11px] leading-snug text-text shadow-[var(--shadow-lift)]">
-                {hoveredEdge.prompt}
-              </p>
-            </div>
+              onClose={() => setPinnedEdgeId(null)}
+              onPointerEnter={cancelHide}
+              onPointerLeave={isExpanded ? undefined : scheduleHide}
+            />
           )}
         </motion.div>
       </div>

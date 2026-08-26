@@ -20,9 +20,11 @@ export function createWorkspaceStore({ project, collections }) {
     activeCollectionId: null, // null renders the home grid, set renders the graph
     selectedNodeId: null,
     hoveredEdgeId: null,
+    viewerNodeId: null, // set opens the full-size media viewer for that take
     referenceIds: [], // staged references for the next generation
     sidebarCollapsed: false,
     configCollapsed: false,
+    configWidth: 316, // user-resizable; drag handle lives on the panel's edge
     isGenerating: false,
     error: null,
 
@@ -38,8 +40,12 @@ export function createWorkspaceStore({ project, collections }) {
 
     setHoveredEdge: (edgeId) => set({ hoveredEdgeId: edgeId }),
 
+    openViewer: (nodeId) => set({ viewerNodeId: nodeId }),
+    closeViewer: () => set({ viewerNodeId: null }),
+
     toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     toggleConfig: () => set((s) => ({ configCollapsed: !s.configCollapsed })),
+    setConfigWidth: (width) => set({ configWidth: width }),
 
     // --- References -------------------------------------------------------
 
@@ -70,7 +76,7 @@ export function createWorkspaceStore({ project, collections }) {
 
     // --- Generation -------------------------------------------------------
 
-    generate: async ({ kind, prompt, count, aspectRatio, model }) => {
+    generate: async ({ kind, prompt, count, aspectRatio, model, quality, resolution }) => {
       const { selectedNodeId, referenceIds, activeCollectionId } = get();
       set({ isGenerating: true, error: null });
 
@@ -83,6 +89,8 @@ export function createWorkspaceStore({ project, collections }) {
             count,
             aspectRatio,
             model,
+            quality,
+            resolution,
             parentId: selectedNodeId,
             referenceIds,
           }),

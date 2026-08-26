@@ -42,7 +42,7 @@ export default function HomeGrid({ filter = "" }) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-6 p-4 sm:grid-cols-3 sm:p-6 lg:grid-cols-4 2xl:grid-cols-5">
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-10 p-4 sm:grid-cols-3 sm:gap-x-8 sm:p-6 lg:grid-cols-4 2xl:grid-cols-5">
         {isGenerating && <PendingCard />}
         {visible.map((collection, i) => (
           <CollectionCard

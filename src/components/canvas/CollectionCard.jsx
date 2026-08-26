@@ -39,25 +39,27 @@ export default function CollectionCard({ collection, onOpen, index }) {
         }`}
         className="group w-full text-left"
       >
-        <div className="relative aspect-[4/5] w-full">
-          {/* Two resting cards behind the cover imply the batch without
-              scattering it. They spread a little further on hover. */}
-          <span
-            aria-hidden
-            className="absolute inset-x-3 top-2 h-full rounded-[var(--r-panel)] border border-border bg-surface-2 transition-transform duration-300 ease-out group-hover:-translate-y-1.5 group-hover:rotate-[1.2deg]"
-          />
-          <span
-            aria-hidden
-            className="absolute inset-x-1.5 top-1 h-full rounded-[var(--r-panel)] border border-border bg-surface transition-transform duration-300 ease-out group-hover:-translate-y-0.5 group-hover:-rotate-[0.8deg]"
-          />
-          <div className="relative h-full w-full overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-panel)] transition-shadow duration-300 group-hover:shadow-[var(--shadow-lift)]">
+        {/* A fanned hand of cards: the two behind pivot from the bottom edge
+            and splay left/right, the way a held hand of cards fans, with the
+            cover straight on top. Rotation alone makes the fan — no extra
+            sideways shift — because a rotated card this tall already reaches
+            surprisingly far sideways from a bottom pivot (roughly height ×
+            sin(angle)), and stacking a translate on top of that is what was
+            pushing neighbouring cards into each other in the grid. The whole
+            stack scales up as one piece on hover; the fan itself stays put,
+            so hovering never widens the reach into the next column. */}
+        <div className="relative aspect-[4/5] w-full transition-transform duration-300 ease-out group-hover:scale-[1.04]">
+          {nodes.length > 1 && <FannedCard node={nodes[1]} className="-rotate-[6deg]" />}
+          {nodes.length > 2 && <FannedCard node={nodes[2]} className="rotate-[6deg]" />}
+
+          <div className="relative h-full w-full overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-lift)]">
             {cover && (
               <Image
                 src={cover.url}
                 alt=""
                 fill
                 sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 45vw"
-                className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                className="object-cover"
               />
             )}
             {isVideo && (
@@ -92,5 +94,24 @@ export default function CollectionCard({ collection, onOpen, index }) {
         </div>
       </button>
     </motion.li>
+  );
+}
+
+/** One card in the fan behind the cover. Rotation pivots from the bottom
+ *  edge, matching how a real card tilts when held and splayed. */
+function FannedCard({ node, className }) {
+  return (
+    <div
+      aria-hidden
+      className={`absolute inset-0 origin-bottom overflow-hidden rounded-[var(--r-panel)] border border-border shadow-[var(--shadow-panel)] transition-transform duration-300 ease-out ${className}`}
+    >
+      <Image
+        src={node.url}
+        alt=""
+        fill
+        sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 45vw"
+        className="object-cover"
+      />
+    </div>
   );
 }

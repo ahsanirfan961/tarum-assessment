@@ -103,6 +103,17 @@ body {
   border-radius: 4px;
 }
 
+/* Browsers default <button> to the arrow cursor, not the hand — only <a>
+   gets that for free. Every custom control in this app is a <button>, so
+   without this the entire UI reads as non-interactive on hover. */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -122,6 +133,29 @@ body {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Radix Select's floating panel. */
+@keyframes select-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes select-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

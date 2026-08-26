@@ -55,6 +55,8 @@ export default function ConfigForm({ kind }) {
     setPrompt(parent.node.prompt);
     setAspectRatio(parent.node.aspectRatio);
     setModel(parent.node.model);
+    if (parent.node.quality) setQuality(parent.node.quality);
+    if (parent.node.resolution) setResolution(parent.node.resolution);
   } else if (!parent && loadedFrom !== null) {
     setLoadedFrom(null);
   }
@@ -62,7 +64,15 @@ export default function ConfigForm({ kind }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!prompt.trim() || isGenerating) return;
-    await generate({ kind, prompt, count: Number(count), aspectRatio, model });
+    await generate({
+      kind,
+      prompt,
+      count: Number(count),
+      aspectRatio,
+      model,
+      quality,
+      resolution,
+    });
     setPrompt("");
   }
 
@@ -128,6 +138,7 @@ export default function ConfigForm({ kind }) {
                       type="button"
                       onClick={() => toggleReference(id)}
                       aria-label={`Remove reference from ${ref.collection.name}`}
+                      title={`Remove reference from ${ref.collection.name}`}
                       className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-text text-bg opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <X size={9} weight="bold" />

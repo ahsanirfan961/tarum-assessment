@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { CaretRight, GitBranch, Stack } from "@phosphor-icons/react";
+import { ArrowsOut, CaretRight, GitBranch, Play, Stack } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import { ancestorPath } from "@/lib/layout/tidyTree";
+import IconButton from "@/components/ui/IconButton";
 
 /**
  * Phone rendering of a lineage.
@@ -17,6 +18,7 @@ export default function MobileLineage({ collection }) {
   const referenceIds = useWorkspace((s) => s.referenceIds);
   const selectNode = useWorkspace((s) => s.selectNode);
   const toggleReference = useWorkspace((s) => s.toggleReference);
+  const openViewer = useWorkspace((s) => s.openViewer);
 
   const nodes = collection.nodes;
   const roots = nodes.filter((n) => !n.parentId);
@@ -46,6 +48,7 @@ export default function MobileLineage({ collection }) {
                   type="button"
                   onClick={() => selectNode(node.id)}
                   aria-label="Go to earlier take"
+                  title="Go to earlier take"
                   className="block h-9 w-9 overflow-hidden rounded-md border border-border"
                 >
                   <Image
@@ -76,6 +79,19 @@ export default function MobileLineage({ collection }) {
             priority
             className="object-cover"
           />
+          {current.durationSeconds && (
+            <span className="pointer-events-none absolute bottom-2.5 left-2.5 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              <Play size={10} weight="fill" aria-hidden />
+              {current.durationSeconds}s
+            </span>
+          )}
+          <IconButton
+            label="Open full size"
+            onClick={() => openViewer(current.id)}
+            className="absolute right-2.5 top-2.5 bg-black/60 text-white hover:bg-black/75 hover:text-white"
+          >
+            <ArrowsOut size={16} />
+          </IconButton>
         </div>
         <div className="space-y-2.5 p-3">
           <p className="text-[12px] leading-relaxed text-text">{current.prompt}</p>
@@ -136,6 +152,7 @@ function NodeRow({ title, nodes, onSelect, icon = false }) {
               type="button"
               onClick={() => onSelect(node.id)}
               aria-label={`Take from prompt: ${node.prompt}`}
+              title={node.prompt}
               className="block h-24 w-24 overflow-hidden rounded-[var(--r-control)] border border-border transition-colors active:border-accent"
             >
               <Image

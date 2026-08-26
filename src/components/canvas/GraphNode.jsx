@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { memo } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { FilmSlate, Play, Stack } from "@phosphor-icons/react";
+import { ArrowsOut, FilmSlate, Play, Stack } from "@phosphor-icons/react";
 import { NODE_H, NODE_W } from "@/lib/layout/tidyTree";
 
 /**
@@ -22,10 +22,18 @@ function GraphNode({
   onSelect,
   onToggleReference,
   onToggleAssembly,
+  onOpenViewer,
   onFocusChange,
   index,
 }) {
   const reduce = useReducedMotion();
+
+  // Mouse users can click through the edge tooltip to a config popover for
+  // this same detail; that popover isn't reachable by keyboard, so the node's
+  // own accessible name carries the full config instead, not just the prompt.
+  const configSummary = [node.model, node.quality, node.resolution]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <motion.div
@@ -59,7 +67,8 @@ function GraphNode({
           onFocus={() => onFocusChange?.(true)}
           onBlur={() => onFocusChange?.(false)}
           aria-pressed={selected}
-          aria-label={`Take from prompt: ${node.prompt}`}
+          aria-label={`Take from prompt: ${node.prompt}. ${configSummary}.`}
+          title={`${node.prompt}\n\n${configSummary}`}
           className={`relative block h-full w-full overflow-hidden rounded-[var(--r-panel)] border bg-surface-2 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 ${
             selected
               ? "border-accent shadow-[var(--shadow-lift),0_0_0_2px_var(--accent)]"
@@ -121,6 +130,19 @@ function GraphNode({
               <FilmSlate size={13} weight={inAssembly ? "fill" : "regular"} />
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenViewer(node.id);
+            }}
+            aria-label="Open full size"
+            title="Open full size"
+            className="grid h-7 w-7 place-items-center rounded-md bg-surface/95 text-text shadow-[var(--shadow-panel)] backdrop-blur-sm transition-colors hover:bg-surface"
+          >
+            <ArrowsOut size={13} />
+          </button>
         </div>
       </div>
     </motion.div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { nameFromPrompt } from "@/lib/naming";
+import { SAMPLE_VIDEOS } from "@/lib/mock/seed";
 
 const KINDS = {
   image: { latencyMs: 900, defaultModel: "Fomi Core v3" },
@@ -28,6 +29,8 @@ export async function POST(request, { params }) {
     count = 4,
     aspectRatio = kind === "video" ? "16:9" : "1:1",
     model = config.defaultModel,
+    quality = "standard",
+    resolution = "2K",
     parentId = null,
     referenceIds = [],
   } = body;
@@ -47,8 +50,15 @@ export async function POST(request, { params }) {
     prompt: prompt.trim(),
     model,
     aspectRatio,
+    quality,
+    resolution,
     url: `https://picsum.photos/seed/${batch}${i}/640/640`,
-    ...(kind === "video" ? { durationSeconds: 4 + (i % 3) * 2 } : {}),
+    ...(kind === "video"
+      ? {
+          durationSeconds: 4 + (i % 3) * 2,
+          videoUrl: SAMPLE_VIDEOS[(batch.charCodeAt(0) + i) % SAMPLE_VIDEOS.length],
+        }
+      : {}),
   }));
 
   return NextResponse.json({

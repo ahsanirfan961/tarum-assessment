@@ -10,11 +10,26 @@
  *   collections, and they render as dashed edges only while a node is active.
  * - `prompt` on a node is the prompt that *produced* it, which is what the
  *   incoming edge from its parent displays on hover.
+ * - Video nodes additionally carry a `videoUrl` (a real, playable file), while
+ *   `url` stays the poster frame used everywhere the take is shown as a
+ *   thumbnail. The lightbox is the only place `videoUrl` is read.
  */
 
 const photo = (seed) => `https://picsum.photos/seed/${seed}/640/640`;
 
+// A small pool of long-standing public CC0 sample clips (Google's GTV test
+// bucket), cycled by index the same way thumbnails are cycled by seed. Real
+// generation would replace this with the model's actual output file.
+const SAMPLE_VIDEOS = [
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+];
+
 let counter = 0;
+let videoCounter = 0;
 const uid = (prefix) => `${prefix}_${(counter += 1).toString(36)}`;
 
 function node({
@@ -24,18 +39,28 @@ function node({
   seed,
   model = "Fomi Core v3",
   aspectRatio = "1:1",
+  quality = "standard",
+  resolution = "2K",
   referenceIds = [],
   durationSeconds,
 }) {
+  const isVideo = Boolean(durationSeconds);
   return {
     id,
     parentId,
     prompt,
     model,
     aspectRatio,
+    quality,
+    resolution,
     referenceIds,
     url: photo(seed),
-    ...(durationSeconds ? { durationSeconds } : {}),
+    ...(isVideo
+      ? {
+          durationSeconds,
+          videoUrl: SAMPLE_VIDEOS[videoCounter++ % SAMPLE_VIDEOS.length],
+        }
+      : {}),
   };
 }
 
@@ -47,7 +72,7 @@ const POUR = "col_pour";
 const amberBase =
   "Cast iron skillet on scorched oak, single window light from the left, steam rising, shallow depth of field";
 const amberWarm =
-  "Warmer key light, shift the skillet left of centre, deepen the shadow under the rim";
+  "Warmer key light from camera left, shift the skillet a few inches left of centre so the handle catches the highlight, deepen the shadow pooling under the rim, keep a thin curl of steam still rising off the seared crust, and let the oak grain stay visible but soft in the background blur";
 const amberTight = "Kill the steam, tighter crop on the handle, hold the highlight";
 
 const sageBase =
@@ -72,7 +97,14 @@ export const COLLECTIONS = [
       node({ id: "amber_r3", prompt: amberBase, seed: "amber-cast-iron-3" }),
       node({ id: "amber_r4", prompt: amberBase, seed: "amber-cast-iron-4" }),
 
-      node({ id: "amber_a1", parentId: "amber_r2", prompt: amberWarm, seed: "amber-warm-1" }),
+      node({
+        id: "amber_a1",
+        parentId: "amber_r2",
+        prompt: amberWarm,
+        seed: "amber-warm-1",
+        quality: "refined",
+        resolution: "4K",
+      }),
       node({ id: "amber_a2", parentId: "amber_r2", prompt: amberWarm, seed: "amber-warm-2" }),
       node({ id: "amber_a3", parentId: "amber_r2", prompt: amberWarm, seed: "amber-warm-3" }),
 
@@ -82,6 +114,8 @@ export const COLLECTIONS = [
         prompt: amberTight,
         seed: "amber-tight-1",
         referenceIds: ["sage_r1"],
+        quality: "refined",
+        resolution: "4K",
       }),
       node({ id: "amber_b2", parentId: "amber_a1", prompt: amberTight, seed: "amber-tight-2" }),
     ],
@@ -94,7 +128,13 @@ export const COLLECTIONS = [
       node({ id: "sage_r1", prompt: sageBase, seed: "sage-ceramic-1" }),
       node({ id: "sage_r2", prompt: sageBase, seed: "sage-ceramic-2" }),
       node({ id: "sage_r3", prompt: sageBase, seed: "sage-ceramic-3" }),
-      node({ id: "sage_a1", parentId: "sage_r3", prompt: sageStack, seed: "sage-stack-1" }),
+      node({
+        id: "sage_a1",
+        parentId: "sage_r3",
+        prompt: sageStack,
+        seed: "sage-stack-1",
+        quality: "draft",
+      }),
       node({ id: "sage_a2", parentId: "sage_r3", prompt: sageStack, seed: "sage-stack-2" }),
     ],
   },
@@ -182,4 +222,4 @@ export const PROJECTS = [
   },
 ];
 
-export { photo, uid };
+export { photo, uid, SAMPLE_VIDEOS };

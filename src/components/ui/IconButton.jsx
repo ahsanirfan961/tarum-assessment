@@ -1,20 +1,19 @@
 "use client";
 
+import { forwardRef } from "react";
+
 /**
  * Icon-only control. `label` is required because there is no visible text for
  * a screen reader to read, and it doubles as the native tooltip.
  */
-export default function IconButton({
-  label,
-  active = false,
-  size = "md",
-  className = "",
-  children,
-  ...props
-}) {
+const IconButton = forwardRef(function IconButton(
+  { label, active = false, size = "md", className = "", children, ...props },
+  ref
+) {
   const dimensions = size === "sm" ? "h-8 w-8" : "h-9 w-9";
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       title={label}
@@ -29,4 +28,6 @@ export default function IconButton({
       {children}
     </button>
   );
-}
+});
+
+export default IconButton;

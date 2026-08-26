@@ -8,6 +8,7 @@ import TopBar from "./TopBar";
 import SearchOverlay from "./SearchOverlay";
 import ConfigPanel, { ConfigSheet } from "@/components/config/ConfigPanel";
 import Canvas from "@/components/canvas/Canvas";
+import MediaLightbox from "@/components/media/MediaLightbox";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 
 export default function WorkspaceShell({ kind }) {
@@ -113,6 +114,8 @@ export default function WorkspaceShell({ kind }) {
           <SearchOverlay value={filter} onChange={setFilter} onClose={closeSearch} />
         )}
       </AnimatePresence>
+
+      <MediaLightbox />
     </div>
   );
 }

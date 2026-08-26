@@ -82,8 +82,9 @@ export function usePanZoom({ contentWidth, contentHeight }) {
 
   const onPointerDown = useCallback(
     (e) => {
-      // Only drag from the canvas backdrop, never from a node.
-      if (e.target.closest("[data-graph-node]")) return;
+      // Only drag from the canvas backdrop, never from a node or a floating
+      // panel (anything opting out via data-no-pan) sitting on top of it.
+      if (e.target.closest("[data-graph-node], [data-no-pan]")) return;
       const el = viewportRef.current;
       el?.setPointerCapture?.(e.pointerId);
       panState.current = {
