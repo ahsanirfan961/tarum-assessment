@@ -28,6 +28,11 @@ export default function CollectionCard({ collection, onOpen, index }) {
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
+      /* Raised above sibling cards on hover/focus so the fan opening below
+         can spill into the grid gap without the next card in DOM order
+         painting over it — normal grid stacking would otherwise do that,
+         since overflowing content follows document order, not visual bounds. */
+      className="relative hover:z-10 focus-within:z-10"
     >
       <button
         type="button"
@@ -41,16 +46,28 @@ export default function CollectionCard({ collection, onOpen, index }) {
       >
         {/* A fanned hand of cards: the two behind pivot from the bottom edge
             and splay left/right, the way a held hand of cards fans, with the
-            cover straight on top. Rotation alone makes the fan — no extra
+            cover straight on top. Rotation alone makes the resting fan — no
             sideways shift — because a rotated card this tall already reaches
             surprisingly far sideways from a bottom pivot (roughly height ×
-            sin(angle)), and stacking a translate on top of that is what was
-            pushing neighbouring cards into each other in the grid. The whole
-            stack scales up as one piece on hover; the fan itself stays put,
-            so hovering never widens the reach into the next column. */}
+            sin(angle)); stacking a translate on top of that at rest is what
+            was pushing neighbouring cards into each other in the grid. On
+            hover the fan opens further (more rotation, a touch of translate)
+            like a hand of cards spreading, and the whole stack scales up
+            together — the z-10 above is what lets that opening motion cross
+            into the gap between cards without vanishing behind the next one. */}
         <div className="relative aspect-[4/5] w-full transition-transform duration-300 ease-out group-hover:scale-[1.04]">
-          {nodes.length > 1 && <FannedCard node={nodes[1]} className="-rotate-[6deg]" />}
-          {nodes.length > 2 && <FannedCard node={nodes[2]} className="rotate-[6deg]" />}
+          {nodes.length > 1 && (
+            <FannedCard
+              node={nodes[1]}
+              className="-rotate-[6deg] group-hover:-translate-x-[6%] group-hover:-rotate-[11deg]"
+            />
+          )}
+          {nodes.length > 2 && (
+            <FannedCard
+              node={nodes[2]}
+              className="rotate-[6deg] group-hover:translate-x-[6%] group-hover:rotate-[11deg]"
+            />
+          )}
 
           <div className="relative h-full w-full overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-lift)]">
             {cover && (
