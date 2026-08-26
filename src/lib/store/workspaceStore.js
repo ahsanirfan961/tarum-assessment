@@ -1,4 +1,5 @@
 import { createStore } from "zustand";
+import { tipOf } from "@/lib/video/cut";
 
 /**
  * Per-project workspace store.
@@ -21,6 +22,8 @@ export function createWorkspaceStore({ project, collections }) {
     selectedNodeId: null,
     hoveredEdgeId: null,
     viewerNodeId: null, // set opens the full-size media viewer for that take
+    viewerCutLeafId: null, // set opens the sequential cut player, mutually
+    viewerCutStart: 0, // exclusive with viewerNodeId
     referenceIds: [], // staged references for the next generation
     sidebarCollapsed: false,
     configCollapsed: false,
@@ -40,8 +43,11 @@ export function createWorkspaceStore({ project, collections }) {
 
     setHoveredEdge: (edgeId) => set({ hoveredEdgeId: edgeId }),
 
-    openViewer: (nodeId) => set({ viewerNodeId: nodeId }),
-    closeViewer: () => set({ viewerNodeId: null }),
+    openViewer: (nodeId) => set({ viewerNodeId: nodeId, viewerCutLeafId: null }),
+    openCut: (leafId, startIndex = 0) =>
+      set({ viewerCutLeafId: leafId, viewerCutStart: startIndex, viewerNodeId: null }),
+    closeViewer: () =>
+      set({ viewerNodeId: null, viewerCutLeafId: null, viewerCutStart: 0 }),
 
     toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     toggleConfig: () => set((s) => ({ configCollapsed: !s.configCollapsed })),
@@ -76,8 +82,19 @@ export function createWorkspaceStore({ project, collections }) {
 
     // --- Generation -------------------------------------------------------
 
-    generate: async ({ kind, prompt, count, aspectRatio, model, quality, resolution }) => {
-      const { selectedNodeId, referenceIds, activeCollectionId } = get();
+    generate: async ({
+      kind,
+      prompt,
+      count,
+      aspectRatio,
+      model,
+      quality,
+      resolution,
+      intent = "regen",
+    }) => {
+      const { selectedNodeId, referenceIds, activeCollectionId, findNode } = get();
+      const parent = selectedNodeId ? findNode(selectedNodeId) : null;
+      const isExtend = kind === "video" && intent === "extend" && Boolean(parent);
       set({ isGenerating: true, error: null });
 
       try {
@@ -93,6 +110,8 @@ export function createWorkspaceStore({ project, collections }) {
             resolution,
             parentId: selectedNodeId,
             referenceIds,
+            intent,
+            parentBeat: parent?.node.beat ?? null,
           }),
         });
         const data = await res.json();
@@ -101,12 +120,23 @@ export function createWorkspaceStore({ project, collections }) {
         // Continuing a lineage: append as children of the selected node.
         if (selectedNodeId && activeCollectionId) {
           set((s) => ({
-            collections: s.collections.map((c) =>
-              c.id === activeCollectionId
-                ? { ...c, nodes: [...c.nodes, ...data.nodes] }
-                : c
-            ),
-            selectedNodeId: null,
+            collections: s.collections.map((c) => {
+              if (c.id !== activeCollectionId) return c;
+              const nodes = [...c.nodes, ...data.nodes];
+              // Extending always advances the cut. Regenerating only moves it
+              // when the take being regenerated was the cut's own tip -
+              // otherwise the new take just joins that beat's alternates,
+              // since re-pointing the cut at a mid-lineage leaf would
+              // silently truncate every later beat.
+              const movesCut =
+                isExtend || (kind === "video" && selectedNodeId === c.cutLeafId);
+              return {
+                ...c,
+                nodes,
+                ...(movesCut ? { cutLeafId: data.nodes[0].id } : {}),
+              };
+            }),
+            selectedNodeId: isExtend ? data.nodes[0].id : null,
             referenceIds: [],
           }));
           return data;
@@ -118,7 +148,7 @@ export function createWorkspaceStore({ project, collections }) {
           kind,
           name: data.name,
           nodes: data.nodes,
-          ...(kind === "video" ? { assembly: [] } : {}),
+          ...(kind === "video" ? { cutLeafId: data.nodes[0]?.id ?? null } : {}),
         };
         set((s) => ({
           collections: [collection, ...s.collections],
@@ -142,31 +172,21 @@ export function createWorkspaceStore({ project, collections }) {
         ),
       })),
 
-    // --- Video assembly ---------------------------------------------------
+    // --- Video cut ----------------------------------------------------
 
-    toggleInAssembly: (collectionId, nodeId) =>
+    /**
+     * Picks `nodeId` as a beat's take for the cut. Points `cutLeafId` at its
+     * tip (see `tipOf`) rather than at `nodeId` itself, so choosing a take
+     * that was later extended keeps the rest of the cut intact instead of
+     * truncating it back to the beat being swapped.
+     */
+    setCutTake: (collectionId, nodeId) =>
       set((s) => ({
-        collections: s.collections.map((c) => {
-          if (c.id !== collectionId) return c;
-          const assembly = c.assembly ?? [];
-          return {
-            ...c,
-            assembly: assembly.includes(nodeId)
-              ? assembly.filter((id) => id !== nodeId)
-              : [...assembly, nodeId],
-          };
-        }),
-      })),
-
-    reorderAssembly: (collectionId, from, to) =>
-      set((s) => ({
-        collections: s.collections.map((c) => {
-          if (c.id !== collectionId) return c;
-          const assembly = [...(c.assembly ?? [])];
-          const [moved] = assembly.splice(from, 1);
-          assembly.splice(to, 0, moved);
-          return { ...c, assembly };
-        }),
+        collections: s.collections.map((c) =>
+          c.id === collectionId
+            ? { ...c, cutLeafId: tipOf(c.nodes, nodeId) }
+            : c
+        ),
       })),
   }));
 }

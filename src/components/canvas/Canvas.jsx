@@ -6,7 +6,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import HomeGrid from "./HomeGrid";
 import GraphCanvas from "./GraphCanvas";
 import MobileLineage from "./MobileLineage";
-import AssemblyStrip from "./AssemblyStrip";
+import CutStrip from "./CutStrip";
 
 /**
  * The canvas has exactly two states: everything in the project, or one lineage
@@ -46,7 +46,7 @@ export default function Canvas({ filter }) {
                 <MobileLineage collection={active} />
               </div>
             )}
-            {active.kind === "video" && <AssemblyStrip collection={active} />}
+            {active.kind === "video" && <CutStrip collection={active} />}
           </>
         ) : (
           <HomeGrid filter={filter} />

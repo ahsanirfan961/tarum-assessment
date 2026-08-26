@@ -11,9 +11,11 @@ import {
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import { usePanZoom } from "@/hooks/usePanZoom";
 import { ancestorPath, layoutLineage, NODE_H } from "@/lib/layout/tidyTree";
+import { resolveCut } from "@/lib/video/cut";
 import IconButton from "@/components/ui/IconButton";
 import GraphNode from "./GraphNode";
 import EdgeConfigPopover from "./EdgeConfigPopover";
+import CanvasGuide from "./CanvasGuide";
 
 const EDGE_WIDGET_W = 300;
 
@@ -31,16 +33,34 @@ export default function GraphCanvas({ collection }) {
   const selectNode = useWorkspace((s) => s.selectNode);
   const setHoveredEdge = useWorkspace((s) => s.setHoveredEdge);
   const toggleReference = useWorkspace((s) => s.toggleReference);
-  const toggleInAssembly = useWorkspace((s) => s.toggleInAssembly);
+  const setCutTake = useWorkspace((s) => s.setCutTake);
   const openViewer = useWorkspace((s) => s.openViewer);
+  const openCut = useWorkspace((s) => s.openCut);
 
   const isVideo = collection.kind === "video";
-  const assembly = collection.assembly ?? [];
 
   const { nodes, edges, width, height } = useMemo(
     () => layoutLineage(collection.nodes),
     [collection.nodes]
   );
+
+  // The compiled cut ending at the collection's chosen leaf: which take plays
+  // for each beat. Drives the in-cut tile treatment and the swap action.
+  const cutIds = useMemo(() => {
+    if (!isVideo) return new Set();
+    return new Set(
+      resolveCut(collection.nodes, collection.cutLeafId).map((n) => n.id)
+    );
+  }, [isVideo, collection.nodes, collection.cutLeafId]);
+
+  const onUseTake = useCallback(
+    (nodeId) => setCutTake(collection.id, nodeId),
+    [collection.id, setCutTake]
+  );
+  // Plays the compiled cut from root up to this take, so any node can answer
+  // "what does the video look like up to here" - not just the collection's
+  // current cut tip.
+  const onPlayCut = useCallback((nodeId) => openCut(nodeId), [openCut]);
 
   const { viewportRef, x, y, scale, fit, zoomIn, zoomOut, handlers } = usePanZoom({
     contentWidth: width,
@@ -178,15 +198,49 @@ export default function GraphCanvas({ collection }) {
             {edges.map((edge) => {
               const lit = litEdges.has(edge.id);
               const hovered = hoveredEdgeId === edge.id;
+              const isExtend = edge.relation === "extend";
               return (
                 <g key={edge.id}>
-                  <path
-                    d={edge.path}
-                    fill="none"
-                    stroke={lit || hovered ? "var(--accent)" : "var(--border-strong)"}
-                    strokeWidth={lit || hovered ? 2 : 1.5}
-                    className="transition-[stroke,stroke-width] duration-200"
-                  />
+                  {isExtend ? (
+                    // A perforated film ribbon for an extension: the next
+                    // moment in time, not an alternative for this one.
+                    // vector-effect="non-scaling-stroke" keeps the rail and
+                    // its sprocket holes a constant screen-space size, so the
+                    // extend/regen distinction still reads at the tree's
+                    // minimum zoom, where a plain scaled stroke would go
+                    // sub-pixel. The resting color is deliberately lighter
+                    // than a regen edge's (--text-muted, not --border-strong)
+                    // so the two read apart by lightness too, not width and
+                    // dashing alone - the only cue that survives for someone
+                    // who can't easily judge a few pixels of stroke width.
+                    <>
+                      <path
+                        d={edge.path}
+                        fill="none"
+                        stroke={lit || hovered ? "var(--accent)" : "var(--text-muted)"}
+                        strokeWidth={13}
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                        className="transition-[stroke] duration-200"
+                      />
+                      <path
+                        d={edge.path}
+                        fill="none"
+                        stroke="var(--bg)"
+                        strokeWidth={5}
+                        strokeDasharray="5 8"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </>
+                  ) : (
+                    <path
+                      d={edge.path}
+                      fill="none"
+                      stroke={lit || hovered ? "var(--accent)" : "var(--border-strong)"}
+                      strokeWidth={lit || hovered ? 2 : 1.5}
+                      className="transition-[stroke,stroke-width] duration-200"
+                    />
+                  )}
                   <path
                     d={edge.path}
                     fill="none"
@@ -224,12 +278,11 @@ export default function GraphCanvas({ collection }) {
                 selected={selectedNodeId === node.id}
                 dimmed={Boolean(focus) && !focus.has(node.id)}
                 isReference={referenceIds.includes(node.id)}
-                inAssembly={isVideo && assembly.includes(node.id)}
+                inCut={isVideo && cutIds.has(node.id)}
                 onSelect={selectNode}
                 onToggleReference={toggleReference}
-                onToggleAssembly={
-                  isVideo ? (id) => toggleInAssembly(collection.id, id) : undefined
-                }
+                onUseTake={isVideo ? onUseTake : undefined}
+                onPlayCut={isVideo ? onPlayCut : undefined}
                 onOpenViewer={openViewer}
                 onFocusChange={(focused) =>
                   setHoveredEdge(focused ? edgeIdByChild.get(node.id) ?? null : null)
@@ -261,13 +314,17 @@ export default function GraphCanvas({ collection }) {
         </motion.div>
       </div>
 
-      {offCanvasRefCount > 0 && (
-        <p className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-border bg-surface/90 px-2.5 py-1 text-[11px] font-medium text-text-muted backdrop-blur">
-          <GitBranch size={12} weight="bold" aria-hidden className="text-accent" />
-          {offCanvasRefCount} reference{offCanvasRefCount > 1 ? "s" : ""} from another
-          collection
-        </p>
-      )}
+      <div className="absolute left-3 top-3 flex items-center gap-2">
+        <CanvasGuide isVideo={isVideo} />
+
+        {offCanvasRefCount > 0 && (
+          <p className="pointer-events-none flex items-center gap-1.5 rounded-full border border-border bg-surface/90 px-2.5 py-1 text-[11px] font-medium text-text-muted backdrop-blur">
+            <GitBranch size={12} weight="bold" aria-hidden className="text-accent" />
+            {offCanvasRefCount} reference{offCanvasRefCount > 1 ? "s" : ""} from another
+            collection
+          </p>
+        )}
+      </div>
 
       <div className="absolute bottom-3 right-3 flex items-center gap-0.5 rounded-[var(--r-panel)] border border-border bg-surface/95 p-1 shadow-[var(--shadow-panel)] backdrop-blur">
         <IconButton label="Zoom out" size="sm" onClick={zoomOut}>

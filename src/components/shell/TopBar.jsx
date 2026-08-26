@@ -1,11 +1,11 @@
 "use client";
 
-import { CaretRight, X } from "@phosphor-icons/react";
+import { CaretRight, Question, X } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import IconButton from "@/components/ui/IconButton";
 import ThemeToggle from "./ThemeToggle";
 
-export default function TopBar() {
+export default function TopBar({ onOpenGuide }) {
   const project = useWorkspace((s) => s.project);
   const activeCollectionId = useWorkspace((s) => s.activeCollectionId);
   const collections = useWorkspace((s) => s.collections);
@@ -39,6 +39,11 @@ export default function TopBar() {
       </nav>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onOpenGuide && (
+          <IconButton label="How Fomi works" onClick={onOpenGuide}>
+            <Question size={17} />
+          </IconButton>
+        )}
         <ThemeToggle />
         <span
           aria-hidden

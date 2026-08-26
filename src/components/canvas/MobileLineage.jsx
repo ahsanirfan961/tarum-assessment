@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import Image from "next/image";
 import { ArrowsOut, CaretRight, GitBranch, Play, Stack } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import { ancestorPath } from "@/lib/layout/tidyTree";
+import { beatOf, resolveCut, takesAtBeat } from "@/lib/video/cut";
 import IconButton from "@/components/ui/IconButton";
 
 /**
@@ -12,6 +14,11 @@ import IconButton from "@/components/ui/IconButton";
  * A pan-and-zoom node graph is the wrong shape for a thumb, so the same tree is
  * re-cut as one vertical path: where this take came from, what sits beside it,
  * and what came out of it. Nothing is hidden, the geometry just changes.
+ *
+ * For video, "beside it" splits into two different relations that a single
+ * batch can now mix (a regeneration and an extension share a parent, but only
+ * one of them advances the beat), so the sibling/children split below is
+ * itself beat-aware for video collections. See src/lib/video/cut.js.
  */
 export default function MobileLineage({ collection }) {
   const selectedNodeId = useWorkspace((s) => s.selectedNodeId);
@@ -20,22 +27,46 @@ export default function MobileLineage({ collection }) {
   const toggleReference = useWorkspace((s) => s.toggleReference);
   const openViewer = useWorkspace((s) => s.openViewer);
 
+  const isVideo = collection.kind === "video";
   const nodes = collection.nodes;
   const roots = nodes.filter((n) => !n.parentId);
   const current = nodes.find((n) => n.id === selectedNodeId) ?? roots[0];
+
+  const cutIds = useMemo(() => {
+    if (!isVideo) return new Set();
+    return new Set(resolveCut(nodes, collection.cutLeafId).map((n) => n.id));
+  }, [isVideo, nodes, collection.cutLeafId]);
+
   if (!current) return null;
 
-  const ancestors = ancestorPath(nodes, current.id)
-    .slice(1)
+  const ancestorIds = ancestorPath(nodes, current.id).slice(1);
+  const ancestors = [...ancestorIds]
     .reverse()
     .map((id) => nodes.find((n) => n.id === id))
     .filter(Boolean);
 
-  const siblings = nodes.filter(
-    (n) => n.parentId === current.parentId && n.id !== current.id
-  );
-  const children = nodes.filter((n) => n.parentId === current.id);
+  // The nearest ancestor at an earlier beat than `current` - the node
+  // `takesAtBeat` needs to find every alternate for this exact moment,
+  // whether they're `current`'s siblings or its own same-beat children.
+  const prevBeatId = isVideo
+    ? ancestorIds.find((id) => {
+        const a = nodes.find((n) => n.id === id);
+        return a && beatOf(a) < beatOf(current);
+      }) ?? null
+    : null;
+
+  const rawChildren = nodes.filter((n) => n.parentId === current.id);
+
+  const thisMoment = isVideo
+    ? takesAtBeat(nodes, prevBeatId, beatOf(current)).filter((n) => n.id !== current.id)
+    : nodes.filter((n) => n.parentId === current.parentId && n.id !== current.id);
+
+  const nextUp = isVideo
+    ? rawChildren.filter((c) => beatOf(c) > beatOf(current))
+    : rawChildren;
+
   const isReference = referenceIds.includes(current.id);
+  const inCut = isVideo && cutIds.has(current.id);
 
   return (
     <div className="h-full overflow-y-auto p-4">
@@ -79,6 +110,16 @@ export default function MobileLineage({ collection }) {
             priority
             className="object-cover"
           />
+          {isVideo && (
+            <span
+              className={`pointer-events-none absolute left-2.5 top-2.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium backdrop-blur-sm ${
+                inCut ? "bg-surface text-text" : "bg-black/60 text-white"
+              }`}
+            >
+              {String(beatOf(current)).padStart(2, "0")}
+              {inCut ? " · in cut" : ""}
+            </span>
+          )}
           {current.durationSeconds && (
             <span className="pointer-events-none absolute bottom-2.5 left-2.5 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
               <Play size={10} weight="fill" aria-hidden />
@@ -114,23 +155,32 @@ export default function MobileLineage({ collection }) {
       </div>
 
       <NodeRow
-        title={siblings.length ? "Other takes from this prompt" : null}
-        nodes={siblings}
+        title={
+          thisMoment.length
+            ? isVideo
+              ? "Other takes of this moment"
+              : "Other takes from this prompt"
+            : null
+        }
+        nodes={thisMoment}
         onSelect={selectNode}
       />
 
       <NodeRow
-        title={children.length ? "Variants from this take" : null}
-        nodes={children}
+        title={
+          nextUp.length ? (isVideo ? "What happens next" : "Variants from this take") : null
+        }
+        nodes={nextUp}
         onSelect={selectNode}
         icon
       />
 
-      {!children.length && (
+      {!nextUp.length && (
         <p className="mt-5 flex items-start gap-2 rounded-[var(--r-panel)] border border-dashed border-border p-3 text-[12px] leading-relaxed text-text-muted">
           <GitBranch size={14} aria-hidden className="mt-0.5 shrink-0" />
-          This is the end of the branch. Describe a change in the composer to
-          generate variants from it.
+          {isVideo
+            ? "Nothing follows this take yet. Describe what happens next in the composer."
+            : "This is the end of the branch. Describe a change in the composer to generate variants from it."}
         </p>
       )}
     </div>

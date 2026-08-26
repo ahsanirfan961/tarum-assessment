@@ -13,6 +13,10 @@
  * - Video nodes additionally carry a `videoUrl` (a real, playable file), while
  *   `url` stays the poster frame used everywhere the take is shown as a
  *   thumbnail. The lightbox is the only place `videoUrl` is read.
+ * - Video nodes also carry `beat`: which moment of the video they occupy.
+ *   A regenerated take repeats its parent's beat; an extended take advances
+ *   it by one. See src/lib/video/cut.js for how a beat sequence resolves
+ *   into a single compiled cut.
  */
 
 const photo = (seed) => `https://picsum.photos/seed/${seed}/640/640`;
@@ -43,6 +47,7 @@ function node({
   resolution = "2K",
   referenceIds = [],
   durationSeconds,
+  beat = 1,
 }) {
   const isVideo = Boolean(durationSeconds);
   return {
@@ -59,6 +64,7 @@ function node({
       ? {
           durationSeconds,
           videoUrl: SAMPLE_VIDEOS[videoCounter++ % SAMPLE_VIDEOS.length],
+          beat,
         }
       : {}),
   };
@@ -85,6 +91,10 @@ const figureBase =
 const pourBase =
   "Slow pour of olive oil into a shallow ceramic dish, macro, 120fps, warm rim light";
 const pourWider = "Pull back to a three quarter view, let the pour finish in frame";
+const pourCooler =
+  "Same move, colder key light, hold longer on the last drip before it breaks";
+const pourSettle = "The dish settles and one drop rings the surface";
+const pourLift = "Lift the dish half an inch and let the light catch the rim as it settles";
 
 export const COLLECTIONS = [
   {
@@ -152,7 +162,7 @@ export const COLLECTIONS = [
     id: POUR,
     kind: "video",
     name: "Pour Sequence",
-    assembly: ["pour_r2", "pour_a1"],
+    cutLeafId: "pour_c1",
     nodes: [
       node({
         id: "pour_r1",
@@ -161,6 +171,7 @@ export const COLLECTIONS = [
         model: "Fomi Motion v2",
         aspectRatio: "16:9",
         durationSeconds: 4,
+        beat: 1,
       }),
       node({
         id: "pour_r2",
@@ -169,6 +180,7 @@ export const COLLECTIONS = [
         model: "Fomi Motion v2",
         aspectRatio: "16:9",
         durationSeconds: 4,
+        beat: 1,
       }),
       node({
         id: "pour_r3",
@@ -177,6 +189,7 @@ export const COLLECTIONS = [
         model: "Fomi Motion v2",
         aspectRatio: "16:9",
         durationSeconds: 4,
+        beat: 1,
       }),
       node({
         id: "pour_a1",
@@ -187,6 +200,7 @@ export const COLLECTIONS = [
         aspectRatio: "16:9",
         durationSeconds: 6,
         referenceIds: ["amber_a1"],
+        beat: 2,
       }),
       node({
         id: "pour_a2",
@@ -196,6 +210,37 @@ export const COLLECTIONS = [
         model: "Fomi Motion v2",
         aspectRatio: "16:9",
         durationSeconds: 6,
+        beat: 2,
+      }),
+      node({
+        id: "pour_b1",
+        parentId: "pour_a1",
+        prompt: pourCooler,
+        seed: "pour-cool-1",
+        model: "Fomi Motion v2",
+        aspectRatio: "16:9",
+        durationSeconds: 6,
+        beat: 2,
+      }),
+      node({
+        id: "pour_c1",
+        parentId: "pour_b1",
+        prompt: pourSettle,
+        seed: "pour-settle-1",
+        model: "Fomi Motion v2",
+        aspectRatio: "16:9",
+        durationSeconds: 5,
+        beat: 3,
+      }),
+      node({
+        id: "pour_c2",
+        parentId: "pour_b1",
+        prompt: pourLift,
+        seed: "pour-settle-2",
+        model: "Fomi Motion v2",
+        aspectRatio: "16:9",
+        durationSeconds: 5,
+        beat: 3,
       }),
     ],
   },

@@ -25,12 +25,18 @@ export function layoutLineage(nodes) {
   const VIRTUAL_ROOT = "__root__";
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
+  // Video siblings are sorted by beat so a regenerated take (same beat as its
+  // parent) consistently lands left of an extension (beat + 1) in every
+  // subtree. Image nodes have no `beat`, so this is a no-op for them and
+  // image layouts are unchanged.
+  const byBeat = (a, b) => (a.beat ?? 0) - (b.beat ?? 0);
+
   const root = hierarchy(
     { id: VIRTUAL_ROOT },
     (d) =>
       d.id === VIRTUAL_ROOT
-        ? nodes.filter((n) => !n.parentId)
-        : nodes.filter((n) => n.parentId === d.id)
+        ? nodes.filter((n) => !n.parentId).sort(byBeat)
+        : nodes.filter((n) => n.parentId === d.id).sort(byBeat)
   );
 
   d3Tree().nodeSize([NODE_W + COL_GAP, NODE_H + ROW_GAP])(root);
@@ -76,6 +82,10 @@ export function layoutLineage(nodes) {
         parentId: parent.id,
         childId: child.id,
         prompt: child.prompt,
+        // Derived, not stored: a child at a later beat than its parent is an
+        // extension (the next moment); anything else is a regeneration (an
+        // alternative for the same moment). Image edges are always "regen".
+        relation: (child.beat ?? 0) > (parent.beat ?? 0) ? "extend" : "regen",
         path: `M ${from.x} ${from.y} C ${from.x} ${from.y + bend}, ${to.x} ${
           to.y - bend
         }, ${to.x} ${to.y}`,

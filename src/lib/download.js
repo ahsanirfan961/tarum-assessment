@@ -12,18 +12,22 @@ export async function downloadAsset(url, filename) {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Fetch failed with ${res.status}`);
     const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(blobUrl);
+    downloadBlob(blob, filename);
   } catch {
     // CORS or network failure on the source: fall back to opening it in a
     // new tab so the user can still save it manually.
     window.open(url, "_blank", "noopener,noreferrer");
   }
+}
+
+/** Saves a blob that's already local (no fetch needed) as a named file. */
+export function downloadBlob(blob, filename) {
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
 }

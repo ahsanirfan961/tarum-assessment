@@ -9,6 +9,7 @@ import SearchOverlay from "./SearchOverlay";
 import ConfigPanel, { ConfigSheet } from "@/components/config/ConfigPanel";
 import Canvas from "@/components/canvas/Canvas";
 import MediaLightbox from "@/components/media/MediaLightbox";
+import UsageGuide from "@/components/onboarding/UsageGuide";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 
 export default function WorkspaceShell({ kind }) {
@@ -23,6 +24,11 @@ export default function WorkspaceShell({ kind }) {
 
   const filter = searchParams.get("q") ?? "";
   const [searchOpen, setSearchOpen] = useState(() => searchParams.has("q"));
+
+  // The walkthrough opens itself on a first visit; this only tracks someone
+  // asking for it again from the top bar. Whether it has been seen before is
+  // read from storage inside UsageGuide.
+  const [guideReopened, setGuideReopened] = useState(false);
 
   // Guards against the two sync effects below fighting each other.
   //
@@ -100,7 +106,7 @@ export default function WorkspaceShell({ kind }) {
       <Sidebar projectId={projectId} onOpenSearch={openSearch} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
+        <TopBar onOpenGuide={() => setGuideReopened(true)} />
         <div className="flex min-h-0 flex-1">
           <ConfigPanel kind={kind} />
           <Canvas filter={filter} />
@@ -116,6 +122,12 @@ export default function WorkspaceShell({ kind }) {
       </AnimatePresence>
 
       <MediaLightbox />
+
+      <UsageGuide
+        kind={kind}
+        manualOpen={guideReopened}
+        onClose={() => setGuideReopened(false)}
+      />
     </div>
   );
 }

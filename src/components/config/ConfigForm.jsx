@@ -42,8 +42,15 @@ export default function ConfigForm({ kind }) {
   const [quality, setQuality] = useState("standard");
   const [resolution, setResolution] = useState("2K");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [intent, setIntent] = useState("regen");
 
   const parent = selectedNodeId ? findNode(selectedNodeId) : null;
+
+  // Which take + intent produced the selection the composer is showing right
+  // now, so a chained "Continue" can be told apart from an ordinary click
+  // onto some other take (both just change `selectedNodeId`). Set from
+  // handleSubmit, an event handler, so it's safe to read during render.
+  const [lastSubmit, setLastSubmit] = useState({ intent: null, beat: null });
 
   // Iterating means editing a few words of the previous prompt, never retyping
   // it, so selecting a take loads its prompt and settings ready to change.
@@ -51,19 +58,39 @@ export default function ConfigForm({ kind }) {
   // filled on the frame the selection lands.
   const [loadedFrom, setLoadedFrom] = useState(null);
   if (parent && parent.node.id !== loadedFrom) {
+    const continuingChain =
+      isVideo &&
+      lastSubmit.intent === "extend" &&
+      lastSubmit.beat != null &&
+      parent.node.beat === lastSubmit.beat + 1;
     setLoadedFrom(parent.node.id);
-    setPrompt(parent.node.prompt);
+    setIntent(continuingChain ? "extend" : "regen");
+    setPrompt(continuingChain ? "" : parent.node.prompt);
     setAspectRatio(parent.node.aspectRatio);
     setModel(parent.node.model);
     if (parent.node.quality) setQuality(parent.node.quality);
     if (parent.node.resolution) setResolution(parent.node.resolution);
   } else if (!parent && loadedFrom !== null) {
     setLoadedFrom(null);
+    setIntent("regen");
+  }
+
+  // Only ever rewrites text the user hasn't typed over: leaves an edited
+  // prompt alone when the operation is switched.
+  function changeIntent(next) {
+    setIntent(next);
+    if (!parent) return;
+    if (next === "extend" && prompt === parent.node.prompt) {
+      setPrompt("");
+    } else if (next === "regen" && prompt === "") {
+      setPrompt(parent.node.prompt);
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!prompt.trim() || isGenerating) return;
+    setLastSubmit({ intent, beat: parent?.node.beat ?? null });
     await generate({
       kind,
       prompt,
@@ -72,6 +99,7 @@ export default function ConfigForm({ kind }) {
       model,
       quality,
       resolution,
+      intent,
     });
     setPrompt("");
   }
@@ -102,7 +130,11 @@ export default function ConfigForm({ kind }) {
                 />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-medium text-text">
                   <GitBranch size={13} weight="bold" aria-hidden className="shrink-0 text-accent" />
-                  <span className="truncate">Branching from this take</span>
+                  <span className="truncate">
+                    {isVideo && intent === "extend"
+                      ? "Continuing after this take"
+                      : "Branching from this take"}
+                  </span>
                 </span>
                 <IconButton
                   label="Stop branching, start a new collection"
@@ -112,6 +144,35 @@ export default function ConfigForm({ kind }) {
                   <X size={13} weight="bold" />
                 </IconButton>
               </div>
+
+              {isVideo && (
+                <fieldset className="mt-2 flex gap-1 rounded-[var(--r-control)] border border-border bg-surface-2 p-1">
+                  <legend className="sr-only">Operation</legend>
+                  {[
+                    { value: "regen", label: "New take" },
+                    { value: "extend", label: "Continue" },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex-1 cursor-pointer rounded-[calc(var(--r-control)-4px)] px-2 py-1.5 text-center text-[12px] font-medium transition-colors ${
+                        intent === option.value
+                          ? "bg-surface text-text shadow-[var(--shadow-panel)]"
+                          : "text-text-muted hover:text-text"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="intent"
+                        value={option.value}
+                        checked={intent === option.value}
+                        onChange={() => changeIntent(option.value)}
+                        className="sr-only"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -163,11 +224,13 @@ export default function ConfigForm({ kind }) {
             }}
             rows={5}
             placeholder={
-              parent
-                ? "What should change in this take…"
-                : isVideo
-                  ? "Describe the shot, the motion, and the light…"
-                  : "Describe the frame, the light, and the mood…"
+              parent && isVideo && intent === "extend"
+                ? "Describe what happens next…"
+                : parent
+                  ? "What should change in this take…"
+                  : isVideo
+                    ? "Describe the shot, the motion, and the light…"
+                    : "Describe the frame, the light, and the mood…"
             }
             className="w-full resize-none rounded-[var(--r-panel)] border border-border bg-surface p-3 text-[13px] leading-relaxed text-text transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           />
@@ -256,7 +319,11 @@ export default function ConfigForm({ kind }) {
           ) : (
             <>
               <Sparkle size={15} weight="fill" aria-hidden />
-              {parent ? "Generate variants" : "Generate"}
+              {parent && isVideo && intent === "extend"
+                ? "Generate continuation"
+                : parent
+                  ? "Generate variants"
+                  : "Generate"}
             </>
           )}
         </Button>

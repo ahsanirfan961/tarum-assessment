@@ -33,10 +33,16 @@ export async function POST(request, { params }) {
     resolution = "2K",
     parentId = null,
     referenceIds = [],
+    intent = "regen",
+    parentBeat = null,
   } = body;
 
   if (!prompt.trim()) {
     return NextResponse.json({ error: "A prompt is required." }, { status: 400 });
+  }
+
+  if (intent !== "regen" && intent !== "extend") {
+    return NextResponse.json({ error: `Unknown intent "${intent}".` }, { status: 400 });
   }
 
   const safeCount = Math.min(Math.max(Number(count) || 1, 1), 8);
@@ -57,6 +63,7 @@ export async function POST(request, { params }) {
       ? {
           durationSeconds: 4 + (i % 3) * 2,
           videoUrl: SAMPLE_VIDEOS[(batch.charCodeAt(0) + i) % SAMPLE_VIDEOS.length],
+          beat: parentBeat == null ? 1 : intent === "extend" ? parentBeat + 1 : parentBeat,
         }
       : {}),
   }));
