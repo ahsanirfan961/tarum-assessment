@@ -28,11 +28,13 @@ export default function CollectionCard({ collection, onOpen, index }) {
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index * 0.04, 0.3), ease: [0.16, 1, 0.3, 1] }}
-      /* Raised above sibling cards on hover/focus so the fan opening below
-         can spill into the grid gap without the next card in DOM order
-         painting over it — normal grid stacking would otherwise do that,
-         since overflowing content follows document order, not visual bounds. */
-      className="relative hover:z-10 focus-within:z-10"
+      /* collection-card: hooks the hover/focus rules in globals.css — the
+         neighbour push, and raising this card above its siblings so the fan
+         opening below can spill into the grid gap without the next card in
+         DOM order painting over it (overflow follows document order, not
+         visual bounds). Kept in one place there rather than split with
+         Tailwind utilities here, since both rules key off the same trigger. */
+      className="collection-card relative"
     >
       <button
         type="button"
@@ -55,17 +57,17 @@ export default function CollectionCard({ collection, onOpen, index }) {
             like a hand of cards spreading, and the whole stack scales up
             together — the z-10 above is what lets that opening motion cross
             into the gap between cards without vanishing behind the next one. */}
-        <div className="relative aspect-[4/5] w-full transition-transform duration-300 ease-out group-hover:scale-[1.04]">
+        <div className="relative aspect-[4/5] w-full transition-transform duration-300 ease-out group-hover:scale-[1.04] group-focus-within:scale-[1.04]">
           {nodes.length > 1 && (
             <FannedCard
               node={nodes[1]}
-              className="-rotate-[6deg] group-hover:-translate-x-[6%] group-hover:-rotate-[11deg]"
+              className="-rotate-[6deg] group-hover:-translate-x-[6%] group-hover:-rotate-[11deg] group-focus-within:-translate-x-[6%] group-focus-within:-rotate-[11deg]"
             />
           )}
           {nodes.length > 2 && (
             <FannedCard
               node={nodes[2]}
-              className="rotate-[6deg] group-hover:translate-x-[6%] group-hover:rotate-[11deg]"
+              className="rotate-[6deg] group-hover:translate-x-[6%] group-hover:rotate-[11deg] group-focus-within:translate-x-[6%] group-focus-within:rotate-[11deg]"
             />
           )}
 
@@ -91,7 +93,7 @@ export default function CollectionCard({ collection, onOpen, index }) {
         </div>
 
         <div className="mt-3 space-y-1">
-          <h3 className="truncate text-[13px] font-semibold tracking-tight transition-colors group-hover:text-accent">
+          <h3 className="truncate text-[13px] font-semibold tracking-tight transition-colors group-hover:text-accent group-focus-within:text-accent">
             {name}
           </h3>
           <p className="flex items-center gap-1.5 text-[11px] text-text-muted">
