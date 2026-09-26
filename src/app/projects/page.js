@@ -6,8 +6,11 @@ import ThemeToggle from "@/components/shell/ThemeToggle";
 
 export const metadata = { title: "Projects · Fomi" };
 
-export default function ProjectsPage() {
-  const projects = listProjects();
+// Covers and counts change with every generation.
+export const dynamic = "force-dynamic";
+
+export default async function ProjectsPage() {
+  const projects = await listProjects();
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">

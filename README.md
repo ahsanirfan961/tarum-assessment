@@ -135,17 +135,28 @@ as a count when they point outside the current canvas.
 - Route handlers for generation: a mock by default, or real image models
   through OpenRouter
 - MinIO (S3 API) for generated media, run with Docker Compose
+- Postgres with Drizzle ORM for projects, collections and takes
 
 ## Running it
 
+Projects, collections and takes live in Postgres, so Docker is needed.
+An API key isn't: generation runs on the mocked backend by default.
+
 ```bash
 npm install
+cp .env.example .env.local
+docker compose up -d
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
 Opens on the most recent project, matching the brief's returning user.
 
-This runs on the mocked backend, with no API key and no Docker needed.
+`db:seed` loads the demo projects. It upserts, so running it again is safe;
+it resets the demo collections' names and cut but leaves generated work
+alone. After changing `src/lib/db/schema.js`, run `npm run db:generate` to
+write a new migration into `drizzle/`.
 
 ## Running with real generation
 
@@ -153,25 +164,16 @@ Image generation can call real models through [OpenRouter](https://openrouter.ai
 Video is still mocked. See [docs/integration](docs/integration/README.md) for
 the plan.
 
-1. Start MinIO, which stores the generated images:
+1. Follow [Running it](#running-it). Compose also starts MinIO, which stores
+   the generated images.
 
-   ```bash
-   docker compose up -d
-   ```
-
-2. Copy the env file, then set `OPENROUTER_API_KEY` and
-   `GENERATION_PROVIDER=openrouter` in `.env.local`:
-
-   ```bash
-   cp .env.example .env.local
-   ```
+2. Set `OPENROUTER_API_KEY` and `GENERATION_PROVIDER=openrouter` in
+   `.env.local`.
 
 3. Run `npm run dev` as usual.
 
 The bucket is created on the first generation. Browse it in the MinIO console
-at http://localhost:9001 (user `fomi`, password `fomi-dev-secret`). Generated
-takes still live in browser memory, so they are gone after a reload, though
-their files stay in MinIO.
+at http://localhost:9001 (user `fomi`, password `fomi-dev-secret`).
 
 ## Structure
 
@@ -184,6 +186,7 @@ src/
       image|video/page.js     the two workspaces
     api/generate/[kind]/      generation, shaped for the lineage graph
     api/media/[...key]/       streams stored media from the bucket
+    api/collections/[id]/     rename a collection, pick its cut
   components/
     shell/                    sidebar, top bar, search, theme toggle
     config/                   composer (shared form, panel and mobile sheet)
@@ -197,11 +200,14 @@ src/
     video/cut.js              beat model: cut resolution, per-beat alternates
     guide.js                  "walkthrough dismissed" as an external store
     store/                    per-project Zustand store
-    data/                     server-side read layer
-    mock/                     seed data
+    data/                     server-side reads and writes over Postgres
+    db/                       Drizzle schema and the pooled client
+    mock/                     seed data (the source for `db:seed`)
     models/catalog.js         models and what each supports; drives the composer
     providers/                mock and OpenRouter generation adapters
     storage.js                S3/MinIO reads and writes
+drizzle/                      SQL migrations, committed
+scripts/seed.mjs              `npm run db:seed`
 ```
 
 ## Notes on the implementation
@@ -242,8 +248,7 @@ it starts from the beginning with no reset to coordinate.
 - Part A of the assessment (implementing the supplied mockup) is a separate
   deliverable and is not built yet.
 - The product thinking document is not written yet.
-- Collection renaming in the UI, and reference edges drawn across collections,
-  are stubbed or omitted.
+- Reference edges drawn across collections are omitted.
 - **Download cut** records real playback via `captureStream()`/`MediaRecorder`,
   so it takes as long as the cut runs and produces a `.webm`. Genuine
   server-side or `ffmpeg.wasm` concatenation would be faster and give an

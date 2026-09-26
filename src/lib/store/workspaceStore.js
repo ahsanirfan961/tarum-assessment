@@ -1,5 +1,5 @@
 import { createStore } from "zustand";
-import { tipOf } from "@/lib/video/cut";
+import { nextCutLeafId, tipOf } from "@/lib/video/cut";
 
 /**
  * Per-project workspace store.
@@ -92,12 +92,14 @@ export function createWorkspaceStore({ project, collections }) {
       resolution,
       intent = "regen",
     }) => {
-      const { selectedNodeId, referenceIds, activeCollectionId, findNode } = get();
+      const { project, selectedNodeId, referenceIds, activeCollectionId, findNode } = get();
       const parent = selectedNodeId ? findNode(selectedNodeId) : null;
       const isExtend = kind === "video" && intent === "extend" && Boolean(parent);
       set({ isGenerating: true, error: null });
 
       try {
+        // Only ids travel: the server loads the parent and references from
+        // the database, and checks they belong to this collection and project.
         const res = await fetch(`/api/generate/${kind}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -108,17 +110,11 @@ export function createWorkspaceStore({ project, collections }) {
             model,
             quality,
             resolution,
+            projectId: project.id,
+            collectionId: parent?.collection.id ?? null,
             parentId: selectedNodeId,
             referenceIds,
-            // Until nodes are persisted (phase 2) the server can't look these
-            // up by id, so the pixels the model should follow travel along.
-            parentUrl: parent?.node.url ?? null,
-            referenceUrls: referenceIds
-              .map((id) => findNode(id)?.node.url)
-              .filter(Boolean),
-            collectionId: parent?.collection.id ?? null,
             intent,
-            parentBeat: parent?.node.beat ?? null,
           }),
         });
         const data = await res.json();
@@ -130,18 +126,15 @@ export function createWorkspaceStore({ project, collections }) {
             collections: s.collections.map((c) => {
               if (c.id !== activeCollectionId) return c;
               const nodes = [...c.nodes, ...data.nodes];
-              // Extending always advances the cut. Regenerating only moves it
-              // when the take being regenerated was the cut's own tip -
-              // otherwise the new take just joins that beat's alternates,
-              // since re-pointing the cut at a mid-lineage leaf would
-              // silently truncate every later beat.
-              const movesCut =
-                isExtend || (kind === "video" && selectedNodeId === c.cutLeafId);
-              return {
-                ...c,
-                nodes,
-                ...(movesCut ? { cutLeafId: data.nodes[0].id } : {}),
-              };
+              if (kind !== "video") return { ...c, nodes };
+              // The same rule the server just wrote (see `nextCutLeafId`).
+              const cutLeafId = nextCutLeafId({
+                intent,
+                parentId: selectedNodeId,
+                cutLeafId: c.cutLeafId,
+                newNodes: data.nodes,
+              });
+              return { ...c, nodes, cutLeafId };
             }),
             selectedNodeId: isExtend ? data.nodes[0].id : null,
             referenceIds: [],
@@ -155,7 +148,16 @@ export function createWorkspaceStore({ project, collections }) {
           kind,
           name: data.name,
           nodes: data.nodes,
-          ...(kind === "video" ? { cutLeafId: data.nodes[0]?.id ?? null } : {}),
+          ...(kind === "video"
+            ? {
+                cutLeafId: nextCutLeafId({
+                  intent,
+                  parentId: null,
+                  cutLeafId: null,
+                  newNodes: data.nodes,
+                }),
+              }
+            : {}),
         };
         set((s) => ({
           collections: [collection, ...s.collections],
@@ -172,12 +174,16 @@ export function createWorkspaceStore({ project, collections }) {
       }
     },
 
-    renameCollection: (collectionId, name) =>
-      set((s) => ({
-        collections: s.collections.map((c) =>
-          c.id === collectionId ? { ...c, name } : c
-        ),
-      })),
+    /**
+     * Renames a collection. Applied immediately, then saved; if saving fails
+     * the old name comes back and the error shows in the composer.
+     */
+    renameCollection: (collectionId, name) => {
+      const trimmed = name.trim();
+      const current = get().collections.find((c) => c.id === collectionId);
+      if (!current || !trimmed || trimmed === current.name) return;
+      return patchCollection(set, get, collectionId, "name", trimmed);
+    },
 
     // --- Video cut ----------------------------------------------------
 
@@ -185,15 +191,49 @@ export function createWorkspaceStore({ project, collections }) {
      * Picks `nodeId` as a beat's take for the cut. Points `cutLeafId` at its
      * tip (see `tipOf`) rather than at `nodeId` itself, so choosing a take
      * that was later extended keeps the rest of the cut intact instead of
-     * truncating it back to the beat being swapped.
+     * truncating it back to the beat being swapped. Saved the same way as a
+     * rename.
      */
-    setCutTake: (collectionId, nodeId) =>
-      set((s) => ({
-        collections: s.collections.map((c) =>
-          c.id === collectionId
-            ? { ...c, cutLeafId: tipOf(c.nodes, nodeId) }
-            : c
-        ),
-      })),
+    setCutTake: (collectionId, nodeId) => {
+      const current = get().collections.find((c) => c.id === collectionId);
+      if (!current) return;
+      const cutLeafId = tipOf(current.nodes, nodeId);
+      if (cutLeafId === current.cutLeafId) return;
+      return patchCollection(set, get, collectionId, "cutLeafId", cutLeafId);
+    },
   }));
+}
+
+/**
+ * Optimistic write of one collection field: set it, PATCH it, and restore the
+ * previous value if the server refuses. The rollback only applies while the
+ * field still holds this call's value, so it never clobbers a later change.
+ */
+async function patchCollection(set, get, collectionId, field, value) {
+  const previous = get().collections.find((c) => c.id === collectionId)?.[field];
+  const apply = (from, to) =>
+    set((s) => ({
+      collections: s.collections.map((c) =>
+        c.id === collectionId && (from === undefined || c[field] === from)
+          ? { ...c, [field]: to }
+          : c
+      ),
+    }));
+
+  apply(undefined, value);
+  set({ error: null });
+  try {
+    const res = await fetch(`/api/collections/${encodeURIComponent(collectionId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Couldn't save that change.");
+    }
+  } catch (err) {
+    apply(value, previous);
+    set({ error: err.message });
+  }
 }

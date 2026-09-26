@@ -5,7 +5,8 @@ results are stored in MinIO, and they show up in the lineage exactly as mock
 takes do today. Branching from a take sends that take's image to the model.
 
 **Still true after this phase:** generated takes live in browser memory and are
-lost on reload (the files stay in MinIO). Phase 2 fixes that.
+lost on reload (the files stay in MinIO). [Phase 2](phase-2-postgres.md) fixes
+that, and replaces `parentUrl` / `referenceUrls` with lookups by id.
 
 ## 1. Docker Compose with MinIO
 

@@ -100,6 +100,24 @@ export function tipOf(nodes, nodeId) {
   }
 }
 
+/**
+ * Where a video collection's cut points once a generation lands. Shared by
+ * the generate route, which writes it, and the store, which applies it, so
+ * the two can't disagree.
+ *
+ * A fresh collection's cut starts at its first take. Extending always
+ * advances the cut. Regenerating only moves it when the take being
+ * regenerated was the cut's own tip - otherwise the new take just joins that
+ * beat's alternates, since re-pointing the cut at a mid-lineage leaf would
+ * silently truncate every later beat.
+ */
+export function nextCutLeafId({ intent, parentId, cutLeafId, newNodes }) {
+  if (!newNodes?.length) return cutLeafId ?? null;
+  if (parentId == null) return newNodes[0].id;
+  const movesCut = intent === "extend" || parentId === cutLeafId;
+  return movesCut ? newNodes[0].id : cutLeafId ?? null;
+}
+
 /** `child.beat` advances past `parent.beat` on an extension, never on a regen. */
 export function edgeRelation(parent, child) {
   return beatOf(child) > beatOf(parent) ? "extend" : "regen";

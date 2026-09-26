@@ -1,5 +1,7 @@
 /**
- * Seed data for the mocked backend.
+ * Demo data, loaded into Postgres by `npm run db:seed` (scripts/seed.mjs).
+ * The app never reads this at runtime; only the mock provider borrows
+ * `SAMPLE_VIDEOS` from it.
  *
  * Model notes:
  * - A *collection* is a lineage, not a batch. The batch that started it is

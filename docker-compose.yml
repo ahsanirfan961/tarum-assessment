@@ -19,5 +19,21 @@ services:
     # The app creates the bucket on first use and surfaces a clear error if
     # MinIO isn't reachable yet.
 
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: fomi
+      POSTGRES_PASSWORD: fomi
+      POSTGRES_DB: fomi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fomi"]
+      interval: 5s
+      retries: 10
+
 volumes:
   minio-data:
+  postgres-data:

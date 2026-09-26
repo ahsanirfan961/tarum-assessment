@@ -3,6 +3,12 @@ import { nameFromPrompt } from "@/lib/naming";
 import { getModel, MAX_TAKES } from "@/lib/models/catalog";
 import { getProvider, getVideoProvider, ProviderError } from "@/lib/providers";
 import { extensionFor, putMedia, StorageError } from "@/lib/storage";
+import { DatabaseError } from "@/lib/db/client";
+import {
+  InputError,
+  insertGeneration,
+  resolveGenerationContext,
+} from "@/lib/data/collections";
 
 const KINDS = new Set(["image", "video"]);
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -15,9 +21,11 @@ const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
  * `referenceIds` that informed it. Which provider fills it in (the mock, or a
  * real model through OpenRouter) is decided by GENERATION_PROVIDER.
  *
- * Until nodes are persisted (phase 2), the client also sends `parentUrl` and
- * `referenceUrls`, since the server has nowhere to look a node up by id. The
- * parent's pixels go to the model, so a child take actually follows it.
+ * The parent and references are looked up by id, never taken from URLs the
+ * client sends, which also checks they belong to this collection and
+ * project. The parent's pixels go to the model, so a child take actually
+ * follows it. Every take is written to Postgres before it is returned, with
+ * the mock provider too.
  */
 export async function POST(request, { params }) {
   const { kind } = await params;
@@ -35,12 +43,10 @@ export async function POST(request, { params }) {
     quality = "draft",
     resolution = null,
     parentId = null,
-    parentUrl = null,
     referenceIds = [],
-    referenceUrls = [],
+    projectId = null,
     collectionId: requestedCollectionId = null,
     intent = "regen",
-    parentBeat = null,
   } = body;
 
   const trimmed = typeof prompt === "string" ? prompt.trim() : "";
@@ -61,22 +67,24 @@ export async function POST(request, { params }) {
     );
   }
 
-  const inputUrls = [parentUrl, ...(Array.isArray(referenceUrls) ? referenceUrls : [])].filter(Boolean);
-  if (inputUrls.length > model.maxReferences) {
-    return badRequest(
-      `${model.label} accepts at most ${model.maxReferences} input images (the parent plus references), but this generation has ${inputUrls.length}.`
-    );
+  // Ids reach SQL parameters and storage keys, so they have to be plain.
+  const isSafeId = (id) => typeof id === "string" && SAFE_ID.test(id);
+  if (!isSafeId(projectId)) {
+    return badRequest("A valid project id is required.");
   }
-
-  // Nodes are keyed in storage by collection, so ids that reach a key have
-  // to be safe path segments.
-  if (requestedCollectionId != null && !SAFE_ID.test(requestedCollectionId)) {
-    return badRequest("Invalid collection id.");
+  for (const id of [requestedCollectionId, parentId]) {
+    if (id != null && !isSafeId(id)) {
+      return badRequest("Invalid collection or take id.");
+    }
+  }
+  if (!Array.isArray(referenceIds) || !referenceIds.every(isSafeId)) {
+    return badRequest("Invalid reference ids.");
   }
 
   const safeCount = Math.min(Math.max(Math.floor(Number(count)) || 1, 1), MAX_TAKES);
-  const batch = Date.now().toString(36);
-  const collectionId = requestedCollectionId ?? `col_${batch}`;
+  // Ids are primary keys now, so two batches in the same millisecond must
+  // still differ.
+  const batch = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const settings = {
     prompt: trimmed,
     model: model.id,
@@ -86,19 +94,53 @@ export async function POST(request, { params }) {
   };
 
   try {
-    const nodes =
+    const { collection, parent, references } = await resolveGenerationContext({
+      kind,
+      projectId,
+      collectionId: requestedCollectionId,
+      parentId,
+      referenceIds,
+    });
+
+    const inputUrls = [parent, ...references].filter(Boolean).map((node) => node.url);
+    if (inputUrls.length > model.maxReferences) {
+      return badRequest(
+        `${model.label} accepts at most ${model.maxReferences} input images (the parent plus references), but this generation has ${inputUrls.length}.`
+      );
+    }
+
+    const collectionId = collection?.id ?? `col_${batch}`;
+    const takes =
       kind === "image"
         ? await generateImageNodes({ model, settings, safeCount, inputUrls, batch, collectionId })
-        : await generateVideoNodes({ settings, safeCount, batch, intent, parentBeat });
+        : await generateVideoNodes({
+            settings,
+            safeCount,
+            batch,
+            intent,
+            parentBeat: parent?.beat ?? null,
+          });
 
-    return NextResponse.json({
-      collectionId,
-      name: nameFromPrompt(trimmed),
+    const saved = await insertGeneration({
       kind,
-      nodes: nodes.map((node) => ({ ...node, parentId, referenceIds })),
+      intent,
+      projectId,
+      collectionId,
+      isNewCollection: !collection,
+      name: nameFromPrompt(trimmed),
+      parentId: parent?.id ?? null,
+      referenceIds: references.map((ref) => ref.id),
+      takes,
     });
+
+    return NextResponse.json({ collectionId, kind, ...saved });
   } catch (err) {
-    if (err instanceof ProviderError || err instanceof StorageError) {
+    if (
+      err instanceof InputError ||
+      err instanceof DatabaseError ||
+      err instanceof ProviderError ||
+      err instanceof StorageError
+    ) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     console.error("[generate]", err);

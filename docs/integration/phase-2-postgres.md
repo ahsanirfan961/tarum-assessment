@@ -154,11 +154,42 @@ With `GENERATION_PROVIDER=mock`, the route still writes to Postgres; only the
 media comes from picsum. So after this phase Docker is required to run the
 app, but an OpenRouter key still isn't.
 
+## As built
+
+Where the implementation differs from, or adds to, the plan above:
+
+- **Seed order.** The seed writes fixed timestamps instead of `now()`, spaced
+  so rows read back in the seed's own order (first project and first
+  collection most recent, nodes in listed order). Generated rows are always
+  newer. Each take in a batch is stamped a millisecond apart, so a batch
+  also reads back in the order the provider returned it.
+- **`listProjects()`** runs three small queries (projects, counts per
+  project, and one `distinct on` for covers) rather than correlated
+  subqueries. The cover falls through to an older collection when the newest
+  has no finished take yet.
+- **The cut's foreign key** is `on delete set null`, so it never blocks
+  deleting a node. The route writes the cut after the nodes, in the same
+  transaction, with the collection row locked (`for update`) so two
+  generations landing at once can't overwrite each other's cut.
+- **Ids.** Batch ids gained a short random suffix, since they are primary
+  keys now and two batches can land in the same millisecond. Every id in a
+  request is checked against `^[A-Za-z0-9_-]{1,64}$` before it reaches SQL or
+  a storage key.
+- **Extra checks on generate.** A `collectionId` without a `parentId` is a
+  400 (a fresh prompt always starts a new collection), and a parent or
+  reference that isn't `completed` yet is refused, which phase 3's pending
+  video takes will rely on.
+- **Rename has a UI now.** Click the collection name in the top bar; Enter
+  or blur saves, Escape cancels.
+- **Code layout.** Reads stay in `src/lib/data/projects.js`; writes live in
+  `src/lib/data/collections.js`. Both import `server-only`. The seed script
+  is `scripts/seed.mjs`.
+
 ## Done when
 
-- [ ] `docker compose up -d && npm run db:migrate && npm run db:seed` gives the same home screen as today.
-- [ ] Generating, then reloading, keeps the new collection and takes.
-- [ ] Branching deeper after a reload still sends the right parent image.
-- [ ] Rename and cut swaps survive a reload.
-- [ ] A forged `parentId` from another project gets a 400.
-- [ ] `npm run build` passes; there are no DB calls in client components.
+- [x] `docker compose up -d && npm run db:migrate && npm run db:seed` gives the same home screen as today.
+- [x] Generating, then reloading, keeps the new collection and takes.
+- [x] Branching deeper after a reload still sends the right parent image.
+- [x] Rename and cut swaps survive a reload.
+- [x] A forged `parentId` from another project gets a 400.
+- [x] `npm run build` passes; there are no DB calls in client components.
