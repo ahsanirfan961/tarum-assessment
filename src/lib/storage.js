@@ -155,6 +155,13 @@ async function streamToBuffer(stream) {
   return Buffer.from(await new Response(stream).arrayBuffer());
 }
 
+/** The bytes behind a `/api/media/...` URL, or null for any other URL. */
+export async function readStoredMedia(url) {
+  if (typeof url !== "string" || !url.startsWith(MEDIA_PREFIX)) return null;
+  const { body, contentType } = await getMedia(decodeURIComponent(url.slice(MEDIA_PREFIX.length)));
+  return { buffer: await streamToBuffer(body), contentType };
+}
+
 /**
  * Turns a node URL into something a model provider can read. OpenRouter
  * can't reach our storage, so stored media is inlined as a `data:` URL. Seed
@@ -167,11 +174,9 @@ export async function readMediaAsDataUrl(url) {
     throw new StorageError("Missing input image URL.", 400);
   }
 
-  if (url.startsWith(MEDIA_PREFIX)) {
-    const key = decodeURIComponent(url.slice(MEDIA_PREFIX.length));
-    const { body, contentType } = await getMedia(key);
-    const buffer = await streamToBuffer(body);
-    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  const stored = await readStoredMedia(url);
+  if (stored) {
+    return `data:${stored.contentType};base64,${stored.buffer.toString("base64")}`;
   }
 
   let parsed;

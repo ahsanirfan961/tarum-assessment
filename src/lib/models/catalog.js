@@ -9,7 +9,11 @@
  * - `id` is stable and is what gets stored on nodes.
  * - `maxCount` is the `n` a single provider request accepts. A batch larger
  *   than that fans out into one request per take.
+ * - `counts` are the takes-per-generation the composer offers, and the most
+ *   the generate route accepts.
  * - `qualities` maps the composer's quality steps to the provider's values.
+ * - `durations` (video only) are the clip lengths offered, in seconds; the
+ *   first is the default, as with `resolutions`.
  */
 export const MODELS = [
   {
@@ -19,8 +23,11 @@ export const MODELS = [
     provider: { slug: "openai/gpt-image-2" },
     maxCount: 10,
     maxReferences: 16,
+    counts: [1, 2, 4, 6],
+    defaultCount: 4,
     aspectRatios: ["1:1", "3:4", "4:3", "16:9", "9:16"],
     resolutions: null,
+    durations: null,
     qualities: { draft: "low", standard: "medium", refined: "high" },
   },
   {
@@ -30,38 +37,47 @@ export const MODELS = [
     provider: { slug: "black-forest-labs/flux.2-klein-4b" },
     maxCount: 1,
     maxReferences: 4,
+    counts: [1, 2, 4, 6],
+    defaultCount: 4,
     aspectRatios: ["1:1", "3:4", "4:3", "16:9", "9:16"],
     resolutions: null,
+    durations: null,
     qualities: null,
   },
 
-  // Video is still mocked until phase 3, so these carry no provider.
+  // Video renders as a background job: one job per take, so `maxCount` is 1
+  // and `counts` doubles as a cost guard.
   {
-    id: "fomi-motion-v2",
-    label: "Fomi Motion v2",
+    id: "draft-video",
+    label: "Draft (Seedance 2.0 Mini)",
     kind: "video",
-    provider: null,
-    maxCount: 8,
-    maxReferences: 16,
+    provider: { slug: "bytedance/seedance-2.0-mini" },
+    maxCount: 1,
+    counts: [1, 2],
+    defaultCount: 1,
+    maxReferences: 4,
     aspectRatios: ["16:9", "9:16", "1:1"],
-    resolutions: ["1K", "2K", "4K"],
-    qualities: { draft: "draft", standard: "standard", refined: "refined" },
+    resolutions: ["480p", "720p"],
+    durations: [4, 5, 6, 8, 10],
+    qualities: null,
+    generateAudio: false,
   },
   {
-    id: "fomi-cinematic",
-    label: "Fomi Cinematic",
+    id: "fast-video",
+    label: "Fast (Seedance 2.0 Fast)",
     kind: "video",
-    provider: null,
-    maxCount: 8,
-    maxReferences: 16,
+    provider: { slug: "bytedance/seedance-2.0-fast" },
+    maxCount: 1,
+    counts: [1, 2],
+    defaultCount: 1,
+    maxReferences: 4,
     aspectRatios: ["16:9", "9:16", "1:1"],
-    resolutions: ["1K", "2K", "4K"],
-    qualities: { draft: "draft", standard: "standard", refined: "refined" },
+    resolutions: ["480p", "720p"],
+    durations: [4, 5, 6, 8, 10],
+    qualities: null,
+    generateAudio: false,
   },
 ];
-
-/** Upper bound on takes per generation, whatever the model. */
-export const MAX_TAKES = 8;
 
 export const QUALITY_STEPS = [
   { value: "draft", label: "Draft, fastest" },
@@ -90,7 +106,11 @@ export function resolveModel(kind, id) {
   return model?.kind === kind ? model : defaultModel(kind);
 }
 
+// Mock video models from before phase 3. Takes made with them keep their id,
+// so they still get a readable name.
+const RETIRED_LABELS = { "fomi-motion-v2": "Fomi Motion v2", "fomi-cinematic": "Fomi Cinematic" };
+
 /** Display name for a node's model; ids the catalog doesn't know show as-is. */
 export function modelLabel(id) {
-  return getModel(id)?.label ?? id;
+  return getModel(id)?.label ?? RETIRED_LABELS[id] ?? id;
 }

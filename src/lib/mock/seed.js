@@ -1,7 +1,8 @@
 /**
  * Demo data, loaded into Postgres by `npm run db:seed` (scripts/seed.mjs).
- * The app never reads this at runtime; only the mock provider borrows
- * `SAMPLE_VIDEOS` from it.
+ * The app never reads this at runtime. `SAMPLE_VIDEOS` is the one export it
+ * uses: those are the only remote clips a last frame may be extracted from
+ * (see src/lib/video/jobs.js).
  *
  * Model notes:
  * - A *collection* is a lineage, not a batch. The batch that started it is

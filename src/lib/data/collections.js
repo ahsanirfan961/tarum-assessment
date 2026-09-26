@@ -22,7 +22,8 @@ export class InputError extends Error {
  * Resolves what a generation builds on, by id, from the database, rather
  * than trusting URLs the client sends. Checks that:
  *
- * - the parent exists and belongs to the collection being continued;
+ * - the parent exists and belongs to the collection being continued (and,
+ *   for images, is finished);
  * - that collection is in this project and is of this kind;
  * - every reference exists and is in the same project (projects are
  *   isolated by design, but references may cross collections).
@@ -60,7 +61,9 @@ export async function resolveGenerationContext({
     if (!parent || parent.collectionId !== collection.id) {
       throw new InputError(`Take "${parentId}" isn't part of this collection.`);
     }
-    if (parent.status !== "completed" || !parent.url) {
+    // Video checks its parent itself (see `startFrameFor`), since a new take
+    // may start from one that is still rendering.
+    if (kind === "image" && (parent.status !== "completed" || !parent.url)) {
       throw new InputError("That take hasn't finished generating, so nothing can branch from it yet.");
     }
   } else if (collectionId != null) {
@@ -147,7 +150,8 @@ export async function insertGeneration({
             collectionId,
             parentId,
             referenceIds,
-            status: "completed",
+            // Video takes arrive `pending` with their job id; images are done.
+            status: take.status ?? "completed",
             cost: take.cost == null ? null : String(take.cost),
             createdAt: new Date(base + i),
           }))

@@ -125,6 +125,11 @@ export function toNode(row) {
     durationSeconds: row.durationSeconds,
     beat: row.beat,
     error: row.error,
+    // Only while a job renders: when it was submitted, for the elapsed time.
+    submittedAt:
+      row.status === "pending" || row.status === "finalizing"
+        ? row.submittedAt?.toISOString()
+        : null,
   };
   for (const [key, value] of Object.entries(optional)) {
     if (value != null) node[key] = value;

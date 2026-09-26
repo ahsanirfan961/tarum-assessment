@@ -1,13 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
-import Image from "next/image";
-import { ArrowsOut, CaretRight, GitBranch, Play, Stack } from "@phosphor-icons/react";
+import {
+  ArrowClockwise,
+  ArrowsOut,
+  CaretRight,
+  GitBranch,
+  Play,
+  Stack,
+} from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
+import { formatElapsed, useElapsed } from "@/hooks/useElapsed";
 import { ancestorPath } from "@/lib/layout/tidyTree";
 import { modelLabel } from "@/lib/models/catalog";
+import { isFailed, isReady, isRendering } from "@/lib/takes";
 import { beatOf, resolveCut, takesAtBeat } from "@/lib/video/cut";
 import IconButton from "@/components/ui/IconButton";
+import TakeImage from "@/components/media/TakeImage";
 
 /**
  * Phone rendering of a lineage.
@@ -27,6 +36,7 @@ export default function MobileLineage({ collection }) {
   const selectNode = useWorkspace((s) => s.selectNode);
   const toggleReference = useWorkspace((s) => s.toggleReference);
   const openViewer = useWorkspace((s) => s.openViewer);
+  const retryNode = useWorkspace((s) => s.retryNode);
 
   const isVideo = collection.kind === "video";
   const nodes = collection.nodes;
@@ -83,11 +93,11 @@ export default function MobileLineage({ collection }) {
                   title="Go to earlier take"
                   className="block h-9 w-9 overflow-hidden rounded-md border border-border"
                 >
-                  <Image
-                    src={node.url}
-                    alt=""
+                  <TakeImage
+                    node={node}
                     width={36}
                     height={36}
+                    iconSize={12}
                     className="h-full w-full object-cover"
                   />
                 </button>
@@ -103,14 +113,15 @@ export default function MobileLineage({ collection }) {
 
       <div className="overflow-hidden rounded-[var(--r-panel)] border border-accent bg-surface-2">
         <div className="relative aspect-square w-full">
-          <Image
-            src={current.url}
-            alt=""
+          <TakeImage
+            node={current}
             fill
             sizes="100vw"
             priority
+            iconSize={28}
             className="object-cover"
           />
+          <TakeStatus node={current} onRetry={retryNode} />
           {isVideo && (
             <span
               className={`pointer-events-none absolute left-2.5 top-2.5 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium backdrop-blur-sm ${
@@ -127,13 +138,15 @@ export default function MobileLineage({ collection }) {
               {current.durationSeconds}s
             </span>
           )}
-          <IconButton
-            label="Open full size"
-            onClick={() => openViewer(current.id)}
-            className="absolute right-2.5 top-2.5 bg-black/60 text-white hover:bg-black/75 hover:text-white"
-          >
-            <ArrowsOut size={16} />
-          </IconButton>
+          {isReady(current) && (
+            <IconButton
+              label="Open full size"
+              onClick={() => openViewer(current.id)}
+              className="absolute right-2.5 top-2.5 bg-black/60 text-white hover:bg-black/75 hover:text-white"
+            >
+              <ArrowsOut size={16} />
+            </IconButton>
+          )}
         </div>
         <div className="space-y-2.5 p-3">
           <p className="text-[12px] leading-relaxed text-text">{current.prompt}</p>
@@ -142,7 +155,8 @@ export default function MobileLineage({ collection }) {
             <button
               type="button"
               onClick={() => toggleReference(current.id)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              disabled={!isReady(current)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
                 isReference
                   ? "border-accent bg-accent-tint text-accent"
                   : "border-border text-text-muted"
@@ -188,6 +202,36 @@ export default function MobileLineage({ collection }) {
   );
 }
 
+/** Over the big preview: how long a take has rendered, or why it failed. */
+function TakeStatus({ node, onRetry }) {
+  const elapsed = useElapsed(isRendering(node) ? node.submittedAt : null);
+  if (isRendering(node)) {
+    return (
+      <p className="absolute inset-x-0 bottom-10 text-center text-[12px] font-medium text-text-muted">
+        {node.status === "finalizing" ? "Saving" : "Rendering"}
+        <span className="ml-1.5 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+      </p>
+    );
+  }
+  if (!isFailed(node)) return null;
+  return (
+    <div className="absolute inset-x-4 bottom-4 flex flex-col items-center gap-2 text-center">
+      <p className="text-[12px] leading-relaxed text-text-muted">
+        <span className="font-semibold text-text">Failed. </span>
+        {node.error ?? "The model couldn't render this take."}
+      </p>
+      <button
+        type="button"
+        onClick={() => onRetry(node.id)}
+        className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12px] font-semibold text-text shadow-[var(--shadow-panel)]"
+      >
+        <ArrowClockwise size={13} weight="bold" aria-hidden />
+        Retry
+      </button>
+    </div>
+  );
+}
+
 function NodeRow({ title, nodes, onSelect, icon = false }) {
   if (!title || !nodes.length) return null;
   return (
@@ -206,9 +250,8 @@ function NodeRow({ title, nodes, onSelect, icon = false }) {
               title={node.prompt}
               className="block h-24 w-24 overflow-hidden rounded-[var(--r-control)] border border-border transition-colors active:border-accent"
             >
-              <Image
-                src={node.url}
-                alt=""
+              <TakeImage
+                node={node}
                 width={96}
                 height={96}
                 className="h-full w-full object-cover"

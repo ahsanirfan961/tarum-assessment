@@ -1,8 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
 import { GitBranch, Play } from "@phosphor-icons/react";
+import TakeImage from "@/components/media/TakeImage";
+import { isRendering } from "@/lib/takes";
 
 /** Deepest chain in the lineage, used to hint that a tree lives inside. */
 function lineageDepth(nodes) {
@@ -22,6 +23,7 @@ export default function CollectionCard({ collection, onOpen, index }) {
   const cover = nodes[0];
   const depth = lineageDepth(nodes);
   const isVideo = kind === "video";
+  const renderingCount = nodes.filter(isRendering).length;
 
   return (
     <motion.li
@@ -43,7 +45,7 @@ export default function CollectionCard({ collection, onOpen, index }) {
            still matches what the user can read on screen. */
         aria-label={`Open ${name} lineage, ${nodes.length} ${
           nodes.length === 1 ? "take" : "takes"
-        }`}
+        }${renderingCount ? `, ${renderingCount} rendering` : ""}`}
         className="group w-full text-left"
       >
         {/* A fanned hand of cards: the two behind pivot from the bottom edge
@@ -72,14 +74,21 @@ export default function CollectionCard({ collection, onOpen, index }) {
           )}
 
           <div className="relative h-full w-full overflow-hidden rounded-[var(--r-panel)] border border-border bg-surface-2 shadow-[var(--shadow-lift)]">
+            {/* A collection that starts with a clip still rendering keeps its
+                shimmering first take as the cover, rather than an empty box. */}
             {cover && (
-              <Image
-                src={cover.url}
-                alt=""
+              <TakeImage
+                node={cover}
                 fill
+                iconSize={22}
                 sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 45vw"
                 className="object-cover"
               />
+            )}
+            {isVideo && cover && isRendering(cover) && (
+              <span className="absolute inset-x-0 bottom-3 text-center text-[11px] font-medium text-text-muted">
+                Rendering
+              </span>
             )}
             {isVideo && (
               <span
@@ -100,6 +109,12 @@ export default function CollectionCard({ collection, onOpen, index }) {
             <span>
               {nodes.length} {nodes.length === 1 ? "take" : "takes"}
             </span>
+            {renderingCount > 0 && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{renderingCount} rendering</span>
+              </>
+            )}
             {depth > 1 && (
               <>
                 <span aria-hidden>·</span>
@@ -124,10 +139,10 @@ function FannedCard({ node, className }) {
       aria-hidden
       className={`absolute inset-0 origin-bottom overflow-hidden rounded-[var(--r-panel)] border border-border shadow-[var(--shadow-panel)] transition-transform duration-300 ease-out ${className}`}
     >
-      <Image
-        src={node.url}
-        alt=""
+      <TakeImage
+        node={node}
         fill
+        iconSize={18}
         sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 45vw"
         className="object-cover"
       />

@@ -6,16 +6,19 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   DownloadSimple,
   FilmSlate,
+  HourglassMedium,
   Pause,
   Play,
   SpeakerHigh,
   SpeakerSlash,
+  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import IconButton from "@/components/ui/IconButton";
 import { downloadAsset, downloadBlob } from "@/lib/download";
 import { modelLabel } from "@/lib/models/catalog";
+import { isFailed, isReady } from "@/lib/takes";
 import { beatOf, cutDuration, resolveCut } from "@/lib/video/cut";
 
 /**
@@ -37,8 +40,13 @@ export default function MediaLightbox() {
   const viewerCutStart = useWorkspace((s) => s.viewerCutStart);
   const closeViewer = useWorkspace((s) => s.closeViewer);
   const findNode = useWorkspace((s) => s.findNode);
+  // Subscribed so a take that finishes rendering while it is open (a cut
+  // waiting on a beat) shows up; `findNode` alone never changes.
+  useWorkspace((s) => s.collections);
 
-  const single = viewerNodeId ? findNode(viewerNodeId) : null;
+  // Only a finished take has anything to show full size.
+  const found = viewerNodeId ? findNode(viewerNodeId) : null;
+  const single = found && isReady(found.node) ? found : null;
   const cutSource = viewerCutLeafId ? findNode(viewerCutLeafId) : null;
   const cutClips = cutSource
     ? resolveCut(cutSource.collection.nodes, viewerCutLeafId)
@@ -137,12 +145,12 @@ function LightboxFrame({ ariaLabel, onClose, title, meta, actions, footer, child
   );
 }
 
-function DownloadButton({ downloading, onClick, label = "Download" }) {
+function DownloadButton({ downloading, onClick, label = "Download", unavailable = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={downloading}
+      disabled={downloading || unavailable}
       className="flex h-9 items-center gap-2 rounded-full bg-white px-3.5 text-[13px] font-semibold text-black transition-colors hover:bg-white/90 disabled:opacity-60"
     >
       <DownloadSimple size={15} weight="bold" aria-hidden />
@@ -156,13 +164,13 @@ function DownloadButton({ downloading, onClick, label = "Download" }) {
  * downloading the beat on screen, so it gets a quieter outline treatment
  * rather than competing with the primary white pill.
  */
-function CompileCutButton({ compiling, disabled, onClick }) {
+function CompileCutButton({ compiling, disabledReason, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || compiling}
-      title={disabled ? "This browser can't compile a single file for the cut" : undefined}
+      disabled={Boolean(disabledReason) || compiling}
+      title={disabledReason ?? undefined}
       className="flex h-9 items-center gap-2 rounded-full border border-white/30 px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-40"
     >
       <FilmSlate size={15} weight="bold" aria-hidden />
@@ -229,6 +237,10 @@ function LightboxPanel({ node, collection, onClose }) {
  * on `ended`. A brief fade masks the poster/black flash that reset causes;
  * reduced motion gets a hard cut instead, never a suppressed auto-advance -
  * that's the feature, and pause/stop stay available throughout.
+ *
+ * A beat still rendering (or failed) keeps its place in the rail but has no
+ * clip, so playback stops there and says so. If it finishes while the player
+ * is open, it starts playing from that beat.
  */
 function CutPlayer({ collection, clips, startIndex, onClose }) {
   const reduce = useReducedMotion();
@@ -273,6 +285,8 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
 
   const clip = clips[index];
   const total = cutDuration(clips);
+  const clipReady = isReady(clip);
+  const allReady = clips.every(isReady);
 
   const goTo = useCallback(
     (next) => {
@@ -326,7 +340,7 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
         }
       })
       .catch(() => setNeedsGesture(true));
-  }, [index]);
+  }, [index, clipReady]);
 
   useEffect(() => {
     function onKey(e) {
@@ -344,6 +358,13 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
   }, [goTo, index, togglePlay]);
 
   function handleEnded() {
+    // The next beat has no clip yet: move onto it, so the player says why
+    // it stopped, rather than looping or skipping past it.
+    if (index < clips.length - 1 && !isReady(clips[index + 1])) {
+      setPlaying(false);
+      goTo(index + 1);
+      return;
+    }
     if (index < clips.length - 1) {
       // goTo() no-ops while a compile is active, which would strand
       // recording on beat one forever, so advance directly here instead.
@@ -368,7 +389,9 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
 
   function handleDownloadCut() {
     const video = videoRef.current;
-    if (!canCompile || !video || compileRef.current.active || clips.length === 0) return;
+    if (!canCompile || !allReady || !video || compileRef.current.active || clips.length === 0) {
+      return;
+    }
 
     compileRef.current.active = true;
     compileRef.current.chunks = [];
@@ -427,11 +450,18 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
         <>
           <CompileCutButton
             compiling={compiling}
-            disabled={!canCompile}
+            disabledReason={
+              !canCompile
+                ? "This browser can't compile a single file for the cut"
+                : !allReady
+                  ? "Every beat has to finish rendering first"
+                  : null
+            }
             onClick={handleDownloadCut}
           />
           <DownloadButton
             downloading={downloading}
+            unavailable={!clipReady}
             onClick={handleDownload}
             label={`Download beat ${index + 1}`}
           />
@@ -450,10 +480,16 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
                 type="button"
                 onClick={() => goTo(i)}
                 disabled={compiling}
-                aria-label={`Jump to beat ${i + 1}`}
+                aria-label={`Jump to beat ${i + 1}${isReady(c) ? "" : isFailed(c) ? " (failed)" : " (rendering)"}`}
                 aria-current={i === index ? "true" : undefined}
                 className={`film-cell relative h-2 overflow-hidden rounded-full transition-colors disabled:pointer-events-none ${
-                  i === index ? "bg-white" : "bg-white/25 hover:bg-white/40"
+                  !isReady(c)
+                    ? i === index
+                      ? "border border-dashed border-white"
+                      : "border border-dashed border-white/40 hover:border-white/70"
+                    : i === index
+                      ? "bg-white"
+                      : "bg-white/25 hover:bg-white/40"
                 }`}
                 style={{ flexGrow: c.durationSeconds ?? 1 }}
               />
@@ -481,21 +517,25 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
           reduce ? "" : "transition-opacity duration-150"
         } ${fading ? "opacity-0" : "opacity-100"}`}
       >
-        <video
-          ref={videoRef}
-          key={clip.id}
-          src={clip.videoUrl}
-          poster={clip.url}
-          preload="auto"
-          playsInline
-          muted={muted}
-          onEnded={handleEnded}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          className="max-h-full max-w-full rounded-[var(--r-panel)] shadow-[var(--shadow-lift)]"
-        />
+        {clipReady ? (
+          <video
+            ref={videoRef}
+            key={clip.id}
+            src={clip.videoUrl}
+            poster={clip.url}
+            preload="auto"
+            playsInline
+            muted={muted}
+            onEnded={handleEnded}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            className="max-h-full max-w-full rounded-[var(--r-panel)] shadow-[var(--shadow-lift)]"
+          />
+        ) : (
+          <NotReadyNotice clip={clip} beat={index + 1} />
+        )}
 
-        {needsGesture && (
+        {needsGesture && clipReady && (
           <button
             type="button"
             onClick={togglePlay}
@@ -512,7 +552,7 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
         <IconButton
           label={playing ? "Pause" : "Play"}
           onClick={togglePlay}
-          disabled={compiling}
+          disabled={compiling || !clipReady}
           className="text-white hover:bg-white/15 hover:text-white disabled:opacity-40"
         >
           {playing ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
@@ -527,5 +567,30 @@ function CutPlayer({ collection, clips, startIndex, onClose }) {
         </IconButton>
       </div>
     </LightboxFrame>
+  );
+}
+
+/** Where the cut stops: a beat that has no clip yet, and why. */
+function NotReadyNotice({ clip, beat }) {
+  const failed = isFailed(clip);
+  return (
+    <div
+      role="status"
+      className="flex max-w-sm flex-col items-center gap-2 rounded-[var(--r-panel)] border border-dashed border-white/30 px-6 py-8 text-center text-white"
+    >
+      {failed ? (
+        <WarningCircle size={22} weight="bold" aria-hidden />
+      ) : (
+        <HourglassMedium size={22} aria-hidden />
+      )}
+      <p className="text-[13px] font-medium">
+        {failed ? `Beat ${beat} failed to render.` : `Beat ${beat} is still rendering.`}
+      </p>
+      <p className="text-[12px] leading-relaxed text-white/60">
+        {failed
+          ? "The cut stops here. Retry the take from the canvas, or pick another take for this beat."
+          : "The cut plays up to here. It picks up from this beat as soon as the clip is ready."}
+      </p>
+    </div>
   );
 }

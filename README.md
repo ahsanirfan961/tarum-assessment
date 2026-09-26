@@ -52,6 +52,12 @@ Continuations join up into one video, shown along **the cut** at the bottom:
 - **Download cut** saves the whole thing as one file. **Download beat** saves
   just the moment on screen.
 
+A video take takes a minute or two to render. It appears straight away as a
+card counting up, and you can keep working (even start another take) while
+it renders. **Continue** waits until a take has finished, since it starts
+from that take's last frame. If a take fails, it says why, with a **Retry**
+button.
+
 > If a swap says *"cut becomes 2 beats"*, that version simply has nothing
 > following it yet. Nothing is deleted — pick **Continue** to carry on from
 > there.
@@ -132,8 +138,10 @@ as a count when they point outside the current canvas.
 - Motion for entrances and transitions
 - Zustand for per-project workspace state
 - d3-hierarchy for tidy-tree layout
-- Route handlers for generation: a mock by default, or real image models
-  through OpenRouter
+- Route handlers for generation: a mock by default, or real image and video
+  models through OpenRouter; video renders as background jobs
+- ffmpeg (from `ffmpeg-static`, nothing to install) for video posters and
+  last frames
 - MinIO (S3 API) for generated media, run with Docker Compose
 - Postgres with Drizzle ORM for projects, collections and takes
 
@@ -158,14 +166,19 @@ it resets the demo collections' names and cut but leaves generated work
 alone. After changing `src/lib/db/schema.js`, run `npm run db:generate` to
 write a new migration into `drizzle/`.
 
+The mock renders video too: each take "renders" for about eight seconds,
+then ffmpeg makes a real clip that opens on the take's start frame (a slow
+push-in), which is stored like a real one. Put `[fail]` in a video prompt to
+get a take that fails, to try the failed state and Retry.
+
 ## Running with real generation
 
-Image generation can call real models through [OpenRouter](https://openrouter.ai).
-Video is still mocked. See [docs/integration](docs/integration/README.md) for
-the plan.
+Image and video generation can call real models through
+[OpenRouter](https://openrouter.ai). See
+[docs/integration](docs/integration/README.md) for the plan and the models.
 
 1. Follow [Running it](#running-it). Compose also starts MinIO, which stores
-   the generated images.
+   the generated images and clips.
 
 2. Set `OPENROUTER_API_KEY` and `GENERATION_PROVIDER=openrouter` in
    `.env.local`.
@@ -174,6 +187,10 @@ the plan.
 
 The bucket is created on the first generation. Browse it in the MinIO console
 at http://localhost:9001 (user `fomi`, password `fomi-dev-secret`).
+
+Video defaults to one 4 second, 480p take (about $0.14 with Seedance 2.0
+Mini) and renders in one to two minutes. Rendering takes are polled while the
+tab is open; a take left rendering is picked up again on the next visit.
 
 ## Structure
 
@@ -185,6 +202,7 @@ src/
       layout.js               fetches project data, provides the store
       image|video/page.js     the two workspaces
     api/generate/[kind]/      generation, shaped for the lineage graph
+    api/generate/jobs/        polls rendering video takes; retries failed ones
     api/media/[...key]/       streams stored media from the bucket
     api/collections/[id]/     rename a collection, pick its cut
   components/
@@ -194,10 +212,13 @@ src/
     onboarding/               first-run walkthrough and its illustrations
     media/                    take viewer and the sequential cut player
     ui/                       button, icon button, select
-  hooks/                      pan and zoom, media query, theme, guide-seen
+  hooks/                      pan and zoom, media query, theme, guide-seen, elapsed time
   lib/
     layout/tidyTree.js        Reingold-Tilford layout and ancestor paths
     video/cut.js              beat model: cut resolution, per-beat alternates
+    video/jobs.js             video jobs: start frames, finishing, retry
+    video/ffmpeg.js           posters, last frames, the mock's clips
+    takes.js                  take states and what each allows
     guide.js                  "walkthrough dismissed" as an external store
     store/                    per-project Zustand store
     data/                     server-side reads and writes over Postgres
@@ -249,6 +270,10 @@ it starts from the beginning with no reset to coordinate.
   deliverable and is not built yet.
 - The product thinking document is not written yet.
 - Reference edges drawn across collections are omitted.
+- The seed's video clips pointed at Google's public sample bucket, which is no
+  longer public, so the demo "Pour Sequence" collection doesn't play and its
+  takes can't be continued (New take still works). Generated video is
+  unaffected.
 - **Download cut** records real playback via `captureStream()`/`MediaRecorder`,
   so it takes as long as the cut runs and produces a `.webm`. Genuine
   server-side or `ffmpeg.wasm` concatenation would be faster and give an

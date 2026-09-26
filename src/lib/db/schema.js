@@ -59,10 +59,21 @@ export const nodes = pgTable(
     lastFrameUrl: text("last_frame_url"), // phase 3 "continue"
     durationSeconds: real("duration_seconds"),
     beat: integer("beat"),
-    // Filled by phase 3's background video jobs; image takes land completed.
-    status: text("status").notNull().default("completed"), // 'pending' | 'completed' | 'failed'
+    // Image takes land completed. A video take starts 'pending' while its job
+    // renders, is 'finalizing' while one request stores its output (see
+    // src/lib/video/jobs.js), and ends 'completed' or 'failed'.
+    status: text("status").notNull().default("completed"), // 'pending' | 'finalizing' | 'completed' | 'failed'
     error: text("error"),
     providerJobId: text("provider_job_id"),
+    // When the current job was submitted; a retry resets it. Drives the
+    // pending card's elapsed time, since created_at is the take's place in
+    // the tree and never moves.
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    // When a request claimed the finished job to store it. A claim older than
+    // a few minutes belongs to a request that died, and can be taken over.
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    // Failed attempts at storing a finished job; the take fails after three.
+    finalizeAttempts: integer("finalize_attempts").notNull().default(0),
     cost: numeric("cost", { precision: 10, scale: 5 }),
     createdAt: createdAt(),
   },

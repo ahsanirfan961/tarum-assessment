@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { createWorkspaceStore } from "./workspaceStore";
 
@@ -12,6 +12,14 @@ const WorkspaceContext = createContext(null);
  */
 export function WorkspaceProvider({ project, collections, children }) {
   const [store] = useState(() => createWorkspaceStore({ project, collections }));
+
+  // Takes still rendering when the page loaded (a reload mid-render) are
+  // picked up here; the store stops polling by itself once none are left.
+  useEffect(() => {
+    const { startPolling, stopPolling } = store.getState();
+    startPolling();
+    return stopPolling;
+  }, [store]);
   return (
     <WorkspaceContext.Provider value={store}>{children}</WorkspaceContext.Provider>
   );

@@ -1,16 +1,15 @@
 "use client";
 
 import { useId, useState } from "react";
-import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { CaretDown, GitBranch, Sparkle, X } from "@phosphor-icons/react";
+import { CaretDown, GitBranch, HourglassMedium, Sparkle, X } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
 import Select from "@/components/ui/Select";
+import TakeImage from "@/components/media/TakeImage";
 import { defaultModel, modelsFor, QUALITY_STEPS, resolveModel } from "@/lib/models/catalog";
-
-const COUNTS = ["1", "2", "4", "6"];
+import { branchBlocker } from "@/lib/takes";
 
 export default function ConfigForm({ kind }) {
   const promptId = useId();
@@ -21,13 +20,19 @@ export default function ConfigForm({ kind }) {
   const isGenerating = useWorkspace((s) => s.isGenerating);
   const error = useWorkspace((s) => s.error);
   const findNode = useWorkspace((s) => s.findNode);
+  // Subscribed so the selected take finishing its render lifts the notice
+  // below without waiting for some other change; `findNode` never changes.
+  useWorkspace((s) => s.collections);
   const selectNode = useWorkspace((s) => s.selectNode);
   const toggleReference = useWorkspace((s) => s.toggleReference);
   const generate = useWorkspace((s) => s.generate);
 
   const isVideo = kind === "video";
   const [prompt, setPrompt] = useState("");
-  const [count, setCount] = useState(isVideo ? "2" : "4");
+  // Video costs real money per take and renders for minutes, so it defaults
+  // to one take; see the catalog's `counts`.
+  const [count, setCount] = useState(() => String(defaultModel(kind).defaultCount));
+  const [duration, setDuration] = useState(() => String(defaultModel(kind).durations?.[0] ?? ""));
   const [aspectRatio, setAspectRatio] = useState(isVideo ? "16:9" : "1:1");
   const [model, setModel] = useState(() => defaultModel(kind).id);
   const [quality, setQuality] = useState("draft");
@@ -57,6 +62,12 @@ export default function ConfigForm({ kind }) {
       : resolutions[0]
     : null;
   const advancedFieldCount = (qualityOptions ? 1 : 0) + (resolutions ? 1 : 0);
+  const countOptions = modelEntry.counts.map(String);
+  const effectiveCount = countOptions.includes(count) ? count : String(modelEntry.defaultCount);
+  const durationOptions = modelEntry.durations?.map((d) => ({ value: String(d), label: `${d}s` }));
+  const effectiveDuration = durationOptions
+    ? (durationOptions.find((d) => d.value === duration) ?? durationOptions[0]).value
+    : null;
 
   // Which take + intent produced the selection the composer is showing right
   // now, so a chained "Continue" can be told apart from an ordinary click
@@ -82,6 +93,7 @@ export default function ConfigForm({ kind }) {
     setModel(resolveModel(kind, parent.node.model).id);
     if (parent.node.quality) setQuality(parent.node.quality);
     if (parent.node.resolution) setResolution(parent.node.resolution);
+    if (parent.node.durationSeconds) setDuration(String(parent.node.durationSeconds));
   } else if (!parent && loadedFrom !== null) {
     setLoadedFrom(null);
     setIntent("regen");
@@ -99,18 +111,24 @@ export default function ConfigForm({ kind }) {
     }
   }
 
+  // A take still rendering (or failed) can't be built on in every way; say
+  // why here rather than letting the request fail. The server applies the
+  // same rule.
+  const blocker = isVideo ? branchBlocker(parent?.node, intent) : null;
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!prompt.trim() || isGenerating) return;
+    if (!prompt.trim() || isGenerating || blocker) return;
     setLastSubmit({ intent, beat: parent?.node.beat ?? null });
     await generate({
       kind,
       prompt,
-      count: Number(count),
+      count: Number(effectiveCount),
       aspectRatio: effectiveRatio,
       model: modelEntry.id,
       quality: effectiveQuality,
       resolution: effectiveResolution,
+      duration: effectiveDuration == null ? null : Number(effectiveDuration),
       intent,
     });
     setPrompt("");
@@ -133,11 +151,11 @@ export default function ConfigForm({ kind }) {
               className="overflow-hidden"
             >
               <div className="flex items-center gap-2.5 rounded-[var(--r-panel)] border border-accent/35 bg-accent-tint p-2">
-                <Image
-                  src={parent.node.url}
-                  alt=""
+                <TakeImage
+                  node={parent.node}
                   width={36}
                   height={36}
+                  iconSize={12}
                   className="h-9 w-9 shrink-0 rounded-md object-cover"
                 />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-medium text-text">
@@ -185,6 +203,16 @@ export default function ConfigForm({ kind }) {
                   ))}
                 </fieldset>
               )}
+
+              {blocker && (
+                <p
+                  role="status"
+                  className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-text-muted"
+                >
+                  <HourglassMedium size={13} aria-hidden className="mt-0.5 shrink-0" />
+                  {blocker}
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -200,8 +228,8 @@ export default function ConfigForm({ kind }) {
                 if (!ref) return null;
                 return (
                   <li key={id} className="group relative">
-                    <Image
-                      src={ref.node.url}
+                    <TakeImage
+                      node={ref.node}
                       alt={`Reference from ${ref.collection.name}`}
                       width={44}
                       height={44}
@@ -248,14 +276,22 @@ export default function ConfigForm({ kind }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Select label="Takes" value={count} onChange={setCount} options={COUNTS} />
+        <div className={`grid gap-2 ${durationOptions ? "grid-cols-3" : "grid-cols-2"}`}>
+          <Select label="Takes" value={effectiveCount} onChange={setCount} options={countOptions} />
           <Select
             label="Ratio"
             value={effectiveRatio}
             onChange={setAspectRatio}
             options={ratios}
           />
+          {durationOptions && (
+            <Select
+              label="Length"
+              value={effectiveDuration}
+              onChange={setDuration}
+              options={durationOptions}
+            />
+          )}
         </div>
 
         <Select
@@ -331,13 +367,13 @@ export default function ConfigForm({ kind }) {
         <Button
           type="submit"
           variant="primary"
-          disabled={!prompt.trim() || isGenerating}
+          disabled={!prompt.trim() || isGenerating || Boolean(blocker)}
           className="w-full"
         >
           {isGenerating ? (
             <>
               <Sparkle size={15} weight="fill" aria-hidden className="animate-pulse" />
-              Generating
+              {isVideo ? "Submitting" : "Generating"}
             </>
           ) : (
             <>

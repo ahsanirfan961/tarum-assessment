@@ -2,12 +2,21 @@ import { readMediaAsDataUrl } from "@/lib/storage";
 import { ProviderError } from "./errors";
 
 /**
- * Real image generation through OpenRouter's Images API.
+ * Real generation through OpenRouter.
+ *
+ * Images are synchronous: one request, the pixels come back in the response.
  * https://openrouter.ai/docs/api/api-reference/images/generate-an-image
+ *
+ * Video is a job: submitting returns an id straight away, and the clip is
+ * ready tens of seconds to minutes later. src/lib/video/jobs.js polls it.
+ * https://openrouter.ai/docs/guides/overview/multimodal/video-generation
  */
 
 const IMAGES_ENDPOINT = "https://openrouter.ai/api/v1/images";
+const VIDEOS_ENDPOINT = "https://openrouter.ai/api/v1/videos";
 const TIMEOUT_MS = 120_000;
+const JOB_REQUEST_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 export const name = "openrouter";
 
@@ -31,27 +40,30 @@ function errorMessage(data, status) {
   return lines.join("\n");
 }
 
-async function requestImages(body) {
-  let res;
+/** A fetch to OpenRouter, with its failures turned into ProviderErrors. */
+async function call(url, { method = "GET", body, timeout = TIMEOUT_MS } = {}) {
   try {
-    res = await fetch(IMAGES_ENDPOINT, {
-      method: "POST",
+    return await fetch(url, {
+      method,
       headers: {
         Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
         "X-Title": "Fomi",
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeout),
     });
   } catch (err) {
     if (err instanceof ProviderError) throw err;
     if (err?.name === "TimeoutError") {
-      throw new ProviderError(`The model didn't respond within ${TIMEOUT_MS / 1000} s.`, 504);
+      throw new ProviderError(`OpenRouter didn't respond within ${timeout / 1000} s.`, 504);
     }
     throw new ProviderError(`Couldn't reach OpenRouter (${err.message}).`, 502);
   }
+}
 
+async function requestImages(body) {
+  const res = await call(IMAGES_ENDPOINT, { method: "POST", body });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new ProviderError(errorMessage(data, res.status), res.status);
 
@@ -102,4 +114,98 @@ export async function generateImages({ model, prompt, count, aspectRatio, qualit
   const reasons = [...new Set(settled.map((s) => s.reason?.message).filter(Boolean))];
   const status = settled.find((s) => s.reason instanceof ProviderError)?.reason.status ?? 502;
   throw new ProviderError(reasons.join("\n") || "Every take failed.", status);
+}
+
+/**
+ * Submits `count` video jobs, one per take. `firstFrameUrl` is the image the
+ * clip must open on (the parent's first frame for a new take, its last frame
+ * for a continuation); references steer the look without pinning a frame.
+ * Both are inlined as data: URLs, since OpenRouter can't reach our storage.
+ *
+ * Returns one settled result per take, `{ jobId }` or `{ error }`, so a batch
+ * where only some submits fail still keeps the ones that went through.
+ */
+export async function submitVideos({
+  model,
+  prompt,
+  count,
+  aspectRatio,
+  resolution,
+  duration,
+  firstFrameUrl,
+  referenceUrls,
+}) {
+  const [firstFrame, ...references] = await Promise.all(
+    [firstFrameUrl, ...referenceUrls].map((url) => (url ? readMediaAsDataUrl(url) : null))
+  );
+
+  const body = {
+    model: model.provider.slug,
+    prompt,
+    aspect_ratio: aspectRatio,
+    resolution,
+    duration,
+    generate_audio: Boolean(model.generateAudio),
+    ...(firstFrame
+      ? {
+          frame_images: [
+            { type: "image_url", image_url: { url: firstFrame }, frame_type: "first_frame" },
+          ],
+        }
+      : {}),
+    ...(references.length
+      ? {
+          input_references: references.map((url) => ({ type: "image_url", image_url: { url } })),
+        }
+      : {}),
+  };
+
+  const settled = await Promise.allSettled(
+    Array.from({ length: count }, async () => {
+      const res = await call(VIDEOS_ENDPOINT, { method: "POST", body, timeout: TIMEOUT_MS });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new ProviderError(errorMessage(data, res.status), res.status);
+      if (!data?.id) throw new ProviderError("OpenRouter accepted the video but returned no job id.");
+      return { jobId: data.id };
+    })
+  );
+  return settled.map((s) => (s.status === "fulfilled" ? s.value : { error: s.reason }));
+}
+
+/**
+ * Where a job is: `pending`/`in_progress` (still rendering), `completed`, or
+ * `failed` with the provider's reason. `cost` arrives with completion.
+ */
+export async function getVideoJob(jobId) {
+  const res = await call(`${VIDEOS_ENDPOINT}/${encodeURIComponent(jobId)}`, {
+    timeout: JOB_REQUEST_TIMEOUT_MS,
+  });
+  const data = await res.json().catch(() => null);
+  if (res.status === 404) {
+    return { status: "failed", error: "OpenRouter no longer has this job.", cost: null };
+  }
+  if (!res.ok) throw new ProviderError(errorMessage(data, res.status), res.status);
+  return {
+    status: data?.status ?? "pending",
+    error: data?.status === "failed" ? jobError(data) : null,
+    cost: typeof data?.usage?.cost === "number" ? data.usage.cost : null,
+  };
+}
+
+function jobError(data) {
+  const error = data?.error;
+  const message = typeof error === "string" ? error : error?.message;
+  return message || "The model couldn't render this take.";
+}
+
+/** The finished clip's bytes. */
+export async function downloadVideo(jobId) {
+  const res = await call(`${VIDEOS_ENDPOINT}/${encodeURIComponent(jobId)}/content?index=0`, {
+    timeout: DOWNLOAD_TIMEOUT_MS,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ProviderError(errorMessage(data, res.status), res.status);
+  }
+  return Buffer.from(await res.arrayBuffer());
 }

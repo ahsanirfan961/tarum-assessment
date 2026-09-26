@@ -231,6 +231,40 @@ button:disabled {
   bottom: 0;
 }
 
+/*
+  A video take still rendering. It can take minutes, so the tile gets a slow
+  sweep of light across an empty frame rather than a spinner that demands
+  attention. Reduced motion keeps the empty frame and drops the sweep.
+*/
+.take-rendering {
+  background-color: var(--surface-2);
+  background-image: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in srgb, var(--surface) 75%, transparent) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  animation: take-shimmer 2.6s ease-in-out infinite;
+}
+
+@keyframes take-shimmer {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .take-rendering {
+    animation: none;
+    background-image: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

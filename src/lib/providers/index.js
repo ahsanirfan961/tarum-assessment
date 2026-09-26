@@ -7,8 +7,9 @@ export { ProviderError };
 const PROVIDERS = { mock, openrouter };
 
 /**
- * The provider named by GENERATION_PROVIDER. Defaults to the mock, so the app
- * runs without an API key and without spending anything.
+ * The provider named by GENERATION_PROVIDER, for images and video alike.
+ * Defaults to the mock, so the app runs without an API key and without
+ * spending anything.
  */
 export function getProvider() {
   const choice = process.env.GENERATION_PROVIDER || "mock";
@@ -22,7 +23,10 @@ export function getProvider() {
   return provider;
 }
 
-/** Video stays mocked until phase 3, whichever provider is configured. */
-export function getVideoProvider() {
-  return mock;
+/**
+ * The provider that owns a submitted job, whatever GENERATION_PROVIDER says
+ * now, so switching providers mid-render doesn't strand a pending take.
+ */
+export function providerForJob(jobId) {
+  return jobId.startsWith("mock_") ? mock : openrouter;
 }

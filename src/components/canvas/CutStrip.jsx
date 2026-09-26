@@ -1,18 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CaretDown, FilmSlate, Play } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
+import { isFailed, isReady } from "@/lib/takes";
 import { beatOf, cutDuration, resolveCut, takesAtBeat } from "@/lib/video/cut";
 import IconButton from "@/components/ui/IconButton";
+import TakeImage from "@/components/media/TakeImage";
 
 /**
  * The compiled video for one lineage: one clip per beat, ascending, resolved
  * straight from the tree. Order comes entirely from beats, so unlike the
  * assembly strip this replaces, there is nothing left to hand-order — this
  * is a readout of the cut, not a place you assemble one.
+ *
+ * A beat whose take is still rendering keeps its slot, marked as such: the
+ * cut already knows what goes there, it just can't play it yet.
  */
 export default function CutStrip({ collection }) {
   const setCutTake = useWorkspace((s) => s.setCutTake);
@@ -77,6 +81,8 @@ export default function CutStrip({ collection }) {
               const hasAlternates = takes.length > 1;
               const isOpen = expandedBeats.has(beat);
               const panelId = `cut-beat-${beat}-takes`;
+              const ready = isReady(clip);
+              const slotState = ready ? "" : isFailed(clip) ? "Failed" : "Rendering";
 
               return (
                 <motion.li
@@ -91,17 +97,19 @@ export default function CutStrip({ collection }) {
                   <button
                     type="button"
                     onClick={() => openViewer(clip.id)}
-                    aria-label={`Open beat ${beat} in the viewer`}
-                    title={`Open beat ${beat} in the viewer`}
-                    className="film-cell relative block h-16 w-28 overflow-hidden rounded-[var(--r-control)] border border-border"
+                    disabled={!ready}
+                    aria-label={
+                      ready ? `Open beat ${beat} in the viewer` : `Beat ${beat}: ${slotState.toLowerCase()}`
+                    }
+                    title={ready ? `Open beat ${beat} in the viewer` : `${slotState}`}
+                    className="film-cell relative block h-16 w-28 overflow-hidden rounded-[var(--r-control)] border border-border disabled:cursor-default"
                   >
-                    <Image
-                      src={clip.url}
-                      alt=""
-                      fill
-                      sizes="112px"
-                      className="object-cover"
-                    />
+                    <TakeImage node={clip} fill sizes="112px" className="object-cover" />
+                    {!ready && (
+                      <span className="pointer-events-none absolute inset-x-0 bottom-1.5 z-[2] text-center text-[10px] font-medium text-text-muted">
+                        {slotState}
+                      </span>
+                    )}
                     <span className="pointer-events-none absolute bottom-1 right-1 z-[2] rounded bg-black/65 px-1 font-mono text-[9px] text-white">
                       {clip.durationSeconds}s
                     </span>
@@ -173,11 +181,11 @@ export default function CutStrip({ collection }) {
                                   : "border-border hover:border-border-strong"
                               }`}
                             >
-                              <Image
-                                src={take.url}
-                                alt=""
+                              <TakeImage
+                                node={take}
                                 fill
                                 sizes="112px"
+                                iconSize={11}
                                 className="object-cover"
                               />
                               {!isCurrent && (

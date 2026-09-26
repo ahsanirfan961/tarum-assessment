@@ -15,6 +15,9 @@ leaves the app working:
 | 2 | Postgres, so projects, collections and takes survive a reload | [phase-2-postgres.md](phase-2-postgres.md) |
 | 3 | Real video generation as background jobs | [phase-3-video.md](phase-3-video.md) |
 
+All three phases are built. Each doc ends with an "As built" section where
+the implementation differs from the plan.
+
 Out of scope for now, to plan after phase 3: access control, rate limits,
 spend caps, content-policy handling, webhooks and deployment.
 
@@ -99,8 +102,9 @@ take. The provider adapter handles both cases.
   the parent's last frame).
 - Durations 4–15 s. Resolutions `480p`, `720p`. Aspect ratios include `16:9`,
   `9:16`, `1:1`.
-- It has a passthrough option called `return_last_frame`. We might use it
-  instead of extracting the last frame ourselves (see phase 3).
+- It has a passthrough option called `return_last_frame`. The phase 3 spike
+  found it adds no output we can read, so the last frame is extracted with
+  ffmpeg.
 
 Fallback: `bytedance/seedance-2.0-fast` (same capabilities, about $0.04 per
 second).

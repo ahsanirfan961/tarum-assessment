@@ -36,6 +36,7 @@ export default function GraphCanvas({ collection }) {
   const setCutTake = useWorkspace((s) => s.setCutTake);
   const openViewer = useWorkspace((s) => s.openViewer);
   const openCut = useWorkspace((s) => s.openCut);
+  const retryNode = useWorkspace((s) => s.retryNode);
 
   const isVideo = collection.kind === "video";
 
@@ -284,6 +285,7 @@ export default function GraphCanvas({ collection }) {
                 onUseTake={isVideo ? onUseTake : undefined}
                 onPlayCut={isVideo ? onPlayCut : undefined}
                 onOpenViewer={openViewer}
+                onRetry={retryNode}
                 onFocusChange={(focused) =>
                   setHoveredEdge(focused ? edgeIdByChild.get(node.id) ?? null : null)
                 }
