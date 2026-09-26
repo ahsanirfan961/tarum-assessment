@@ -8,18 +8,9 @@ import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
 import Select from "@/components/ui/Select";
+import { defaultModel, modelsFor, QUALITY_STEPS, resolveModel } from "@/lib/models/catalog";
 
-const IMAGE_MODELS = ["Fomi Core v3", "Fomi Photoreal", "Fomi Ink"];
-const VIDEO_MODELS = ["Fomi Motion v2", "Fomi Cinematic"];
-const IMAGE_RATIOS = ["1:1", "4:5", "3:4", "16:9"];
-const VIDEO_RATIOS = ["16:9", "9:16", "1:1"];
 const COUNTS = ["1", "2", "4", "6"];
-const QUALITY = [
-  { value: "draft", label: "Draft, fastest" },
-  { value: "standard", label: "Standard" },
-  { value: "refined", label: "Refined, slowest" },
-];
-const RESOLUTIONS = ["1K", "2K", "4K"];
 
 export default function ConfigForm({ kind }) {
   const promptId = useId();
@@ -38,13 +29,34 @@ export default function ConfigForm({ kind }) {
   const [prompt, setPrompt] = useState("");
   const [count, setCount] = useState(isVideo ? "2" : "4");
   const [aspectRatio, setAspectRatio] = useState(isVideo ? "16:9" : "1:1");
-  const [model, setModel] = useState(isVideo ? VIDEO_MODELS[0] : IMAGE_MODELS[0]);
-  const [quality, setQuality] = useState("standard");
+  const [model, setModel] = useState(() => defaultModel(kind).id);
+  const [quality, setQuality] = useState("draft");
   const [resolution, setResolution] = useState("2K");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [intent, setIntent] = useState("regen");
 
   const parent = selectedNodeId ? findNode(selectedNodeId) : null;
+
+  // Every option below comes from the selected model's catalog entry. A
+  // value the model doesn't support (say, a ratio kept from a take made with
+  // another model) falls back to the model's first option rather than
+  // leaving a select blank, and a field the model has no use for is hidden.
+  const modelEntry = resolveModel(kind, model);
+  const modelOptions = modelsFor(kind).map((m) => ({ value: m.id, label: m.label }));
+  const ratios = modelEntry.aspectRatios;
+  const effectiveRatio = ratios.includes(aspectRatio) ? aspectRatio : ratios[0];
+  const qualityOptions = modelEntry.qualities
+    ? QUALITY_STEPS.filter((q) => q.value in modelEntry.qualities)
+    : null;
+  const effectiveQuality =
+    qualityOptions?.find((q) => q.value === quality)?.value ?? qualityOptions?.[0].value ?? null;
+  const resolutions = modelEntry.resolutions;
+  const effectiveResolution = resolutions
+    ? resolutions.includes(resolution)
+      ? resolution
+      : resolutions[0]
+    : null;
+  const advancedFieldCount = (qualityOptions ? 1 : 0) + (resolutions ? 1 : 0);
 
   // Which take + intent produced the selection the composer is showing right
   // now, so a chained "Continue" can be told apart from an ordinary click
@@ -67,7 +79,7 @@ export default function ConfigForm({ kind }) {
     setIntent(continuingChain ? "extend" : "regen");
     setPrompt(continuingChain ? "" : parent.node.prompt);
     setAspectRatio(parent.node.aspectRatio);
-    setModel(parent.node.model);
+    setModel(resolveModel(kind, parent.node.model).id);
     if (parent.node.quality) setQuality(parent.node.quality);
     if (parent.node.resolution) setResolution(parent.node.resolution);
   } else if (!parent && loadedFrom !== null) {
@@ -95,10 +107,10 @@ export default function ConfigForm({ kind }) {
       kind,
       prompt,
       count: Number(count),
-      aspectRatio,
-      model,
-      quality,
-      resolution,
+      aspectRatio: effectiveRatio,
+      model: modelEntry.id,
+      quality: effectiveQuality,
+      resolution: effectiveResolution,
       intent,
     });
     setPrompt("");
@@ -240,65 +252,76 @@ export default function ConfigForm({ kind }) {
           <Select label="Takes" value={count} onChange={setCount} options={COUNTS} />
           <Select
             label="Ratio"
-            value={aspectRatio}
+            value={effectiveRatio}
             onChange={setAspectRatio}
-            options={isVideo ? VIDEO_RATIOS : IMAGE_RATIOS}
+            options={ratios}
           />
         </div>
 
         <Select
           label="Model"
-          value={model}
+          value={modelEntry.id}
           onChange={setModel}
-          options={isVideo ? VIDEO_MODELS : IMAGE_MODELS}
+          options={modelOptions}
         />
 
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            aria-expanded={showAdvanced}
-            className="flex w-full items-center justify-between rounded-[var(--r-control)] px-1 py-2 text-[12px] font-medium text-text-muted transition-colors hover:text-text"
-          >
-            Advanced
-            <CaretDown
-              size={12}
-              weight="bold"
-              aria-hidden
-              className={`transition-transform duration-200 ${showAdvanced ? "rotate-180" : ""}`}
-            />
-          </button>
+        {advancedFieldCount > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              aria-expanded={showAdvanced}
+              className="flex w-full items-center justify-between rounded-[var(--r-control)] px-1 py-2 text-[12px] font-medium text-text-muted transition-colors hover:text-text"
+            >
+              Advanced
+              <CaretDown
+                size={12}
+                weight="bold"
+                aria-hidden
+                className={`transition-transform duration-200 ${showAdvanced ? "rotate-180" : ""}`}
+              />
+            </button>
 
-          <AnimatePresence initial={false}>
-            {showAdvanced && (
-              <motion.div
-                initial={reduce ? false : { opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Select
-                    label="Quality"
-                    value={quality}
-                    onChange={setQuality}
-                    options={QUALITY}
-                  />
-                  <Select
-                    label="Resolution"
-                    value={resolution}
-                    onChange={setResolution}
-                    options={RESOLUTIONS}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+            <AnimatePresence initial={false}>
+              {showAdvanced && (
+                <motion.div
+                  initial={reduce ? false : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div
+                    className={`grid gap-2 pt-1 ${advancedFieldCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+                  >
+                    {qualityOptions && (
+                      <Select
+                        label="Quality"
+                        value={effectiveQuality}
+                        onChange={setQuality}
+                        options={qualityOptions}
+                      />
+                    )}
+                    {resolutions && (
+                      <Select
+                        label="Resolution"
+                        value={effectiveResolution}
+                        onChange={setResolution}
+                        options={resolutions}
+                      />
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {error && (
-          <p role="alert" className="text-[12px] font-medium text-accent-solid">
+          <p
+            role="alert"
+            className="whitespace-pre-line break-words text-[12px] font-medium text-accent-solid"
+          >
             {error}
           </p>
         )}

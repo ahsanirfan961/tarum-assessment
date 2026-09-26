@@ -5,6 +5,7 @@ import { memo } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowsOut, FilmSlate, Play, Stack } from "@phosphor-icons/react";
 import { NODE_H, NODE_W } from "@/lib/layout/tidyTree";
+import { modelLabel } from "@/lib/models/catalog";
 
 /**
  * One take in the lineage.
@@ -33,7 +34,7 @@ function GraphNode({
   // Mouse users can click through the edge tooltip to a config popover for
   // this same detail; that popover isn't reachable by keyboard, so the node's
   // own accessible name carries the full config instead, not just the prompt.
-  const configSummary = [node.model, node.quality, node.resolution]
+  const configSummary = [modelLabel(node.model), node.quality, node.resolution]
     .filter(Boolean)
     .join(" · ");
 

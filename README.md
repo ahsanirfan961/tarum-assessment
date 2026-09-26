@@ -132,7 +132,9 @@ as a count when they point outside the current canvas.
 - Motion for entrances and transitions
 - Zustand for per-project workspace state
 - d3-hierarchy for tidy-tree layout
-- Route handlers as a mocked generation backend
+- Route handlers for generation: a mock by default, or real image models
+  through OpenRouter
+- MinIO (S3 API) for generated media, run with Docker Compose
 
 ## Running it
 
@@ -143,6 +145,34 @@ npm run dev
 
 Opens on the most recent project, matching the brief's returning user.
 
+This runs on the mocked backend, with no API key and no Docker needed.
+
+## Running with real generation
+
+Image generation can call real models through [OpenRouter](https://openrouter.ai).
+Video is still mocked. See [docs/integration](docs/integration/README.md) for
+the plan.
+
+1. Start MinIO, which stores the generated images:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. Copy the env file, then set `OPENROUTER_API_KEY` and
+   `GENERATION_PROVIDER=openrouter` in `.env.local`:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Run `npm run dev` as usual.
+
+The bucket is created on the first generation. Browse it in the MinIO console
+at http://localhost:9001 (user `fomi`, password `fomi-dev-secret`). Generated
+takes still live in browser memory, so they are gone after a reload, though
+their files stay in MinIO.
+
 ## Structure
 
 ```
@@ -152,7 +182,8 @@ src/
     project/[projectId]/
       layout.js               fetches project data, provides the store
       image|video/page.js     the two workspaces
-    api/generate/[kind]/      mocked generation, shaped for the lineage graph
+    api/generate/[kind]/      generation, shaped for the lineage graph
+    api/media/[...key]/       streams stored media from the bucket
   components/
     shell/                    sidebar, top bar, search, theme toggle
     config/                   composer (shared form, panel and mobile sheet)
@@ -168,6 +199,9 @@ src/
     store/                    per-project Zustand store
     data/                     server-side read layer
     mock/                     seed data
+    models/catalog.js         models and what each supports; drives the composer
+    providers/                mock and OpenRouter generation adapters
+    storage.js                S3/MinIO reads and writes
 ```
 
 ## Notes on the implementation

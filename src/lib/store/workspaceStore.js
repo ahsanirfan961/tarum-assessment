@@ -110,6 +110,13 @@ export function createWorkspaceStore({ project, collections }) {
             resolution,
             parentId: selectedNodeId,
             referenceIds,
+            // Until nodes are persisted (phase 2) the server can't look these
+            // up by id, so the pixels the model should follow travel along.
+            parentUrl: parent?.node.url ?? null,
+            referenceUrls: referenceIds
+              .map((id) => findNode(id)?.node.url)
+              .filter(Boolean),
+            collectionId: parent?.collection.id ?? null,
             intent,
             parentBeat: parent?.node.beat ?? null,
           }),

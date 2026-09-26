@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowsOut, CaretRight, GitBranch, Play, Stack } from "@phosphor-icons/react";
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import { ancestorPath } from "@/lib/layout/tidyTree";
+import { modelLabel } from "@/lib/models/catalog";
 import { beatOf, resolveCut, takesAtBeat } from "@/lib/video/cut";
 import IconButton from "@/components/ui/IconButton";
 
@@ -137,7 +138,7 @@ export default function MobileLineage({ collection }) {
         <div className="space-y-2.5 p-3">
           <p className="text-[12px] leading-relaxed text-text">{current.prompt}</p>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-text-muted">{current.model}</span>
+            <span className="text-[11px] text-text-muted">{modelLabel(current.model)}</span>
             <button
               type="button"
               onClick={() => toggleReference(current.id)}

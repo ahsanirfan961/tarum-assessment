@@ -1,25 +1,28 @@
 import { NextResponse } from "next/server";
 import { nameFromPrompt } from "@/lib/naming";
-import { SAMPLE_VIDEOS } from "@/lib/mock/seed";
+import { getModel, MAX_TAKES } from "@/lib/models/catalog";
+import { getProvider, getVideoProvider, ProviderError } from "@/lib/providers";
+import { extensionFor, putMedia, StorageError } from "@/lib/storage";
 
-const KINDS = {
-  image: { latencyMs: 900, defaultModel: "Fomi Core v3" },
-  video: { latencyMs: 1600, defaultModel: "Fomi Motion v2" },
-};
+const KINDS = new Set(["image", "video"]);
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
- * Mocked generation endpoint.
+ * Generation endpoint.
  *
- * The response is already shaped the way the lineage graph consumes it: every
+ * The response is shaped the way the lineage graph consumes it: every
  * returned node carries the `parentId` it was generated from and the
- * `referenceIds` that informed it, so swapping in a real model provider is a
- * change of source, not of schema.
+ * `referenceIds` that informed it. Which provider fills it in (the mock, or a
+ * real model through OpenRouter) is decided by GENERATION_PROVIDER.
+ *
+ * Until nodes are persisted (phase 2), the client also sends `parentUrl` and
+ * `referenceUrls`, since the server has nowhere to look a node up by id. The
+ * parent's pixels go to the model, so a child take actually follows it.
  */
 export async function POST(request, { params }) {
   const { kind } = await params;
-  const config = KINDS[kind];
 
-  if (!config) {
+  if (!KINDS.has(kind)) {
     return NextResponse.json({ error: `Unknown kind "${kind}".` }, { status: 404 });
   }
 
@@ -27,51 +30,123 @@ export async function POST(request, { params }) {
   const {
     prompt = "",
     count = 4,
-    aspectRatio = kind === "video" ? "16:9" : "1:1",
-    model = config.defaultModel,
-    quality = "standard",
-    resolution = "2K",
+    aspectRatio,
+    model: modelId,
+    quality = "draft",
+    resolution = null,
     parentId = null,
+    parentUrl = null,
     referenceIds = [],
+    referenceUrls = [],
+    collectionId: requestedCollectionId = null,
     intent = "regen",
     parentBeat = null,
   } = body;
 
-  if (!prompt.trim()) {
-    return NextResponse.json({ error: "A prompt is required." }, { status: 400 });
-  }
+  const trimmed = typeof prompt === "string" ? prompt.trim() : "";
+  if (!trimmed) return badRequest("A prompt is required.");
 
   if (intent !== "regen" && intent !== "extend") {
-    return NextResponse.json({ error: `Unknown intent "${intent}".` }, { status: 400 });
+    return badRequest(`Unknown intent "${intent}".`);
   }
 
-  const safeCount = Math.min(Math.max(Number(count) || 1, 1), 8);
-  await new Promise((resolve) => setTimeout(resolve, config.latencyMs));
+  const model = getModel(modelId);
+  if (!model || model.kind !== kind) {
+    return badRequest(`Unknown ${kind} model "${modelId}".`);
+  }
 
+  if (!model.aspectRatios.includes(aspectRatio)) {
+    return badRequest(
+      `${model.label} doesn't support ${aspectRatio}. Use one of ${model.aspectRatios.join(", ")}.`
+    );
+  }
+
+  const inputUrls = [parentUrl, ...(Array.isArray(referenceUrls) ? referenceUrls : [])].filter(Boolean);
+  if (inputUrls.length > model.maxReferences) {
+    return badRequest(
+      `${model.label} accepts at most ${model.maxReferences} input images (the parent plus references), but this generation has ${inputUrls.length}.`
+    );
+  }
+
+  // Nodes are keyed in storage by collection, so ids that reach a key have
+  // to be safe path segments.
+  if (requestedCollectionId != null && !SAFE_ID.test(requestedCollectionId)) {
+    return badRequest("Invalid collection id.");
+  }
+
+  const safeCount = Math.min(Math.max(Math.floor(Number(count)) || 1, 1), MAX_TAKES);
   const batch = Date.now().toString(36);
-  const nodes = Array.from({ length: safeCount }, (_, i) => ({
-    id: `${kind}_${batch}_${i}`,
-    parentId,
-    referenceIds,
-    prompt: prompt.trim(),
-    model,
+  const collectionId = requestedCollectionId ?? `col_${batch}`;
+  const settings = {
+    prompt: trimmed,
+    model: model.id,
     aspectRatio,
-    quality,
-    resolution,
-    url: `https://picsum.photos/seed/${batch}${i}/640/640`,
-    ...(kind === "video"
-      ? {
-          durationSeconds: 4 + (i % 3) * 2,
-          videoUrl: SAMPLE_VIDEOS[(batch.charCodeAt(0) + i) % SAMPLE_VIDEOS.length],
-          beat: parentBeat == null ? 1 : intent === "extend" ? parentBeat + 1 : parentBeat,
-        }
-      : {}),
-  }));
+    quality: model.qualities ? quality : null,
+    resolution: model.resolutions ? resolution : null,
+  };
 
-  return NextResponse.json({
-    collectionId: `col_${batch}`,
-    name: nameFromPrompt(prompt),
-    kind,
-    nodes,
+  try {
+    const nodes =
+      kind === "image"
+        ? await generateImageNodes({ model, settings, safeCount, inputUrls, batch, collectionId })
+        : await generateVideoNodes({ settings, safeCount, batch, intent, parentBeat });
+
+    return NextResponse.json({
+      collectionId,
+      name: nameFromPrompt(trimmed),
+      kind,
+      nodes: nodes.map((node) => ({ ...node, parentId, referenceIds })),
+    });
+  } catch (err) {
+    if (err instanceof ProviderError || err instanceof StorageError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    console.error("[generate]", err);
+    return NextResponse.json({ error: "Generation failed unexpectedly." }, { status: 500 });
+  }
+}
+
+async function generateImageNodes({ model, settings, safeCount, inputUrls, batch, collectionId }) {
+  const provider = getProvider();
+  const results = await provider.generateImages({
+    model,
+    prompt: settings.prompt,
+    count: safeCount,
+    aspectRatio: settings.aspectRatio,
+    quality: settings.quality,
+    resolution: settings.resolution,
+    inputUrls,
   });
+
+  return Promise.all(
+    results.map(async (result, i) => {
+      const id = `image_${batch}_${i}`;
+      // The mock hands back URLs it doesn't own; real output is stored.
+      const url =
+        result.url ??
+        (await putMedia(
+          result.buffer,
+          result.contentType,
+          `images/${collectionId}/${id}.${extensionFor(result.contentType)}`
+        ));
+      return { id, ...settings, url, cost: result.cost ?? null };
+    })
+  );
+}
+
+async function generateVideoNodes({ settings, safeCount, batch, intent, parentBeat }) {
+  const results = await getVideoProvider().generateVideos({ count: safeCount });
+  return results.map((result, i) => ({
+    id: `video_${batch}_${i}`,
+    ...settings,
+    url: result.url,
+    videoUrl: result.videoUrl,
+    durationSeconds: result.durationSeconds,
+    beat: parentBeat == null ? 1 : intent === "extend" ? parentBeat + 1 : parentBeat,
+    cost: result.cost ?? null,
+  }));
+}
+
+function badRequest(message) {
+  return NextResponse.json({ error: message }, { status: 400 });
 }

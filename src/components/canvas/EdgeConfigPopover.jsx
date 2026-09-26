@@ -3,15 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { X } from "@phosphor-icons/react";
+import { modelLabel, QUALITY_STEPS } from "@/lib/models/catalog";
 
 const TOOLTIP_EXCERPT = 72;
 const POPOVER_EXCERPT = 180;
 
-const QUALITY_LABEL = {
-  draft: "Draft, fastest",
-  standard: "Standard",
-  refined: "Refined, slowest",
-};
+const QUALITY_LABEL = Object.fromEntries(QUALITY_STEPS.map((q) => [q.value, q.label]));
 
 /**
  * The floating widget on a lineage edge: a compact prompt preview that
@@ -56,11 +53,12 @@ export default function EdgeConfigPopover({
     showFull || !isLong ? node.prompt : `${node.prompt.slice(0, POPOVER_EXCERPT).trimEnd()}…`;
 
   const rows = [
-    { label: "Model", value: node.model },
+    { label: "Model", value: modelLabel(node.model) },
     { label: "Quality", value: QUALITY_LABEL[node.quality] ?? node.quality },
     { label: "Resolution", value: node.resolution },
     { label: "Aspect ratio", value: node.aspectRatio },
     ...(node.durationSeconds ? [{ label: "Duration", value: `${node.durationSeconds}s` }] : []),
+    ...(typeof node.cost === "number" ? [{ label: "Cost", value: `$${node.cost.toFixed(4)}` }] : []),
   ].filter((row) => row.value);
 
   return (

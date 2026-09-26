@@ -15,6 +15,7 @@ import {
 import { useWorkspace } from "@/lib/store/WorkspaceProvider";
 import IconButton from "@/components/ui/IconButton";
 import { downloadAsset, downloadBlob } from "@/lib/download";
+import { modelLabel } from "@/lib/models/catalog";
 import { beatOf, cutDuration, resolveCut } from "@/lib/video/cut";
 
 /**
@@ -176,7 +177,9 @@ function LightboxPanel({ node, collection, onClose }) {
 
   async function handleDownload() {
     setDownloading(true);
-    const ext = isVideo ? "mp4" : "jpg";
+    // Stored takes keep their real extension in the URL (often .png); seed
+    // photography has none and is JPEG.
+    const ext = isVideo ? "mp4" : (node.url.match(/\.(png|jpe?g|webp)$/)?.[1] ?? "jpg");
     await downloadAsset(isVideo ? node.videoUrl : node.url, `${node.id}.${ext}`);
     setDownloading(false);
   }
@@ -186,7 +189,7 @@ function LightboxPanel({ node, collection, onClose }) {
       ariaLabel={`${isVideo ? "Video" : "Image"} viewer: ${node.prompt}`}
       onClose={onClose}
       title={collection.name}
-      meta={`${node.model} · ${node.aspectRatio}${
+      meta={`${modelLabel(node.model)} · ${node.aspectRatio}${
         isVideo ? ` · ${node.durationSeconds}s` : ""
       }`}
       actions={<DownloadButton downloading={downloading} onClick={handleDownload} />}
