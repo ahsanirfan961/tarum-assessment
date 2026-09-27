@@ -77,6 +77,21 @@ export const MODELS = [
     qualities: null,
     generateAudio: false,
   },
+  {
+    id: "wan-video",
+    label: "Wan 3.0",
+    kind: "video",
+    provider: { slug: "alibaba/wan-3.0" },
+    maxCount: 1,
+    counts: [1, 2],
+    defaultCount: 1,
+    maxReferences: 4,
+    aspectRatios: ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    resolutions: ["480p", "720p", "1080p"],
+    durations: [4, 5, 6, 8, 10],
+    qualities: null,
+    generateAudio: true,
+  },
 ];
 
 export const QUALITY_STEPS = [

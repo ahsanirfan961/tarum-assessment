@@ -31,10 +31,25 @@ function apiKey() {
   return key;
 }
 
+// Known upstream error codes/phrases, rewritten in plain language. Matched
+// against the raw message since OpenRouter passes some providers' errors
+// through as an embedded string rather than a structured field.
+const KNOWN_ERRORS = [
+  {
+    match: /InputImageSensitiveContentDetected|may contain a real person/i,
+    friendly:
+      "This model won't animate an image that looks like a real person's face — that's its own privacy filter, not a bug here. Try a less photorealistic source image, or a different reference.",
+  },
+];
+
+function friendlyMessage(raw) {
+  return KNOWN_ERRORS.find((entry) => entry.match.test(raw))?.friendly ?? raw;
+}
+
 /** The reason OpenRouter gives, plus any moderation reasons it attaches. */
 function errorMessage(data, status) {
   const error = data?.error;
-  const lines = [error?.message || `OpenRouter returned ${status}.`];
+  const lines = [friendlyMessage(error?.message || `OpenRouter returned ${status}.`)];
   const reasons = error?.metadata?.reasons;
   if (Array.isArray(reasons) && reasons.length) lines.push(`Flagged for: ${reasons.join(", ")}`);
   return lines.join("\n");
