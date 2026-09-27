@@ -1,5 +1,5 @@
 import { readMediaAsDataUrl } from "@/lib/storage";
-import { renderMockClip } from "@/lib/video/ffmpeg";
+import { clipSize, renderMockClip } from "@/lib/video/ffmpeg";
 import { ProviderError } from "./errors";
 
 /**
@@ -21,11 +21,6 @@ import { ProviderError } from "./errors";
 const IMAGE_LATENCY_MS = 900;
 const SUBMIT_LATENCY_MS = 400;
 const RENDER_MS = 8_000;
-
-const SIZES = {
-  "480p": { "16:9": [854, 480], "9:16": [480, 854], "1:1": [480, 480] },
-  "720p": { "16:9": [1280, 720], "9:16": [720, 1280], "1:1": [720, 720] },
-};
 
 // Muted takes on the app's own palette, picked per prompt.
 const PALETTES = [
@@ -71,7 +66,7 @@ function hash(text) {
 
 export async function submitVideos({ prompt, count, aspectRatio, resolution, duration, firstFrameUrl }) {
   await wait(SUBMIT_LATENCY_MS);
-  const [width, height] = SIZES[resolution]?.[aspectRatio] ?? SIZES["480p"]["16:9"];
+  const [width, height] = clipSize(aspectRatio, resolution);
   const submittedAt = Date.now();
   return Array.from({ length: count }, (_, i) => ({
     jobId: encodeJob({

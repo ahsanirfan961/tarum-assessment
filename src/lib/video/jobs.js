@@ -4,7 +4,6 @@ import { db } from "@/lib/db/client";
 import { nodes } from "@/lib/db/schema";
 import { InputError } from "@/lib/data/collections";
 import { query, toNode } from "@/lib/data/projects";
-import { SAMPLE_VIDEOS } from "@/lib/mock/seed";
 import { getModel } from "@/lib/models/catalog";
 import { getProvider, providerForJob, ProviderError } from "@/lib/providers";
 import { putMedia, readStoredMedia } from "@/lib/storage";
@@ -329,9 +328,9 @@ async function settle(id, changes, from = ["pending", "finalizing"]) {
 // Last frames for older takes
 
 /**
- * A finished take's last frame. Takes stored before phase 3 (the seed, and
- * clips from the old mock) never had one, so it is extracted from the clip
- * the first time someone continues from it, and kept.
+ * A finished take's last frame. A stored clip without one (say, a take whose
+ * frame upload was lost) has it extracted the first time someone continues
+ * from it, and kept. Clips that aren't in our storage can't be read.
  */
 async function lastFrameOf(row) {
   if (row.lastFrameUrl) return row.lastFrameUrl;
@@ -363,14 +362,11 @@ async function lastFrameOf(row) {
   return lastFrameUrl;
 }
 
-/** A clip's bytes: from our storage, or one of the known sample clips. */
+/** A clip's bytes, from our storage only. */
 async function readVideo(videoUrl) {
   const stored = await readStoredMedia(videoUrl);
-  if (stored) return stored.buffer;
-  if (!SAMPLE_VIDEOS.includes(videoUrl)) throw new InputError(NO_LAST_FRAME, 409);
-  const res = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) });
-  if (!res.ok) throw new Error(`fetching the clip returned ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  if (!stored) throw new InputError(NO_LAST_FRAME, 409);
+  return stored.buffer;
 }
 
 // ---------------------------------------------------------------------------

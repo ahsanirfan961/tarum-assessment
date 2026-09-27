@@ -1,8 +1,6 @@
 /**
  * Demo data, loaded into Postgres by `npm run db:seed` (scripts/seed.mjs).
- * The app never reads this at runtime. `SAMPLE_VIDEOS` is the one export it
- * uses: those are the only remote clips a last frame may be extracted from
- * (see src/lib/video/jobs.js).
+ * The app never reads this at runtime.
  *
  * Model notes:
  * - A *collection* is a lineage, not a batch. The batch that started it is
@@ -16,6 +14,9 @@
  * - Video nodes additionally carry a `videoUrl` (a real, playable file), while
  *   `url` stays the poster frame used everywhere the take is shown as a
  *   thumbnail. The lightbox is the only place `videoUrl` is read.
+ * - Here a video node only has `url`, a photo. The seed script renders its
+ *   clip from that photo and stores the clip, its poster and its last frame
+ *   in MinIO, like a generated take, so nothing depends on a remote host.
  * - Video nodes also carry `beat`: which moment of the video they occupy.
  *   A regenerated take repeats its parent's beat; an extended take advances
  *   it by one. See src/lib/video/cut.js for how a beat sequence resolves
@@ -24,19 +25,7 @@
 
 const photo = (seed) => `https://picsum.photos/seed/${seed}/640/640`;
 
-// A small pool of long-standing public CC0 sample clips (Google's GTV test
-// bucket), cycled by index the same way thumbnails are cycled by seed. Real
-// generation would replace this with the model's actual output file.
-const SAMPLE_VIDEOS = [
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-];
-
 let counter = 0;
-let videoCounter = 0;
 const uid = (prefix) => `${prefix}_${(counter += 1).toString(36)}`;
 
 function node({
@@ -63,13 +52,7 @@ function node({
     resolution,
     referenceIds,
     url: photo(seed),
-    ...(isVideo
-      ? {
-          durationSeconds,
-          videoUrl: SAMPLE_VIDEOS[videoCounter++ % SAMPLE_VIDEOS.length],
-          beat,
-        }
-      : {}),
+    ...(isVideo ? { durationSeconds, beat } : {}),
   };
 }
 
@@ -270,4 +253,4 @@ export const PROJECTS = [
   },
 ];
 
-export { photo, uid, SAMPLE_VIDEOS };
+export { photo, uid };

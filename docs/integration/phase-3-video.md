@@ -244,10 +244,19 @@ Where the implementation differs from, or adds to, the plan above:
   take back to `pending` before submitting, so a double click can't pay for
   two jobs. If the old job did render and only storing it failed, it is
   finished again rather than resubmitted.
-- **Older takes and Continue.** Takes from before this phase have no stored
-  last frame. The first Continue from one extracts it from the clip and
-  keeps it. This can't help the seed's clips, which are no longer
-  reachable, so continuing a seed take is refused with a pointer to New take.
+- **Older takes and Continue.** A stored clip without a last frame has it
+  extracted the first time someone continues from it, and kept. Clips
+  outside our storage can't be read, so continuing one is refused with a
+  pointer to New take.
+- **Seed clips are rendered locally.** The seed's video takes used to point
+  at Google's sample bucket, which now answers 403, so they didn't play and
+  couldn't be continued. `npm run db:seed` now renders each one with the
+  mock's clip renderer (a push-in that opens on the take's photo), extracts
+  its poster and last frame, and stores all three under the same keys a
+  generated take uses. Already-stored clips are skipped. The seed reuses
+  `src/lib/storage.js` and `src/lib/video/ffmpeg.js` directly, running with
+  `--conditions=react-server` so `server-only` resolves to its empty build
+  under plain Node. Nothing in the app reaches a remote video host any more.
 - **Polling.** One request at a time, so an older response can never land
   after a newer one and put a finished take back to rendering. It starts
   from `WorkspaceProvider`'s mount effect rather than store creation, so it

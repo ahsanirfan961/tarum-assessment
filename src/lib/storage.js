@@ -2,6 +2,7 @@ import {
   CreateBucketCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -122,6 +123,19 @@ export async function putMedia(buffer, contentType, key) {
     throw isConnectionError(err) ? unreachable(err) : err;
   }
   return `${MEDIA_PREFIX}${key}`;
+}
+
+/** Whether an object is already stored under `key`. */
+export async function hasMedia(key) {
+  if (!isValidKey(key)) return false;
+  await ensureBucket();
+  try {
+    await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return true;
+  } catch (err) {
+    if (err?.$metadata?.httpStatusCode === 404 || err?.name === "NotFound") return false;
+    throw isConnectionError(err) ? unreachable(err) : err;
+  }
 }
 
 /**

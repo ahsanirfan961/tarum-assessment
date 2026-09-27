@@ -6,10 +6,24 @@ import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 
 /**
- * Frame extraction for finished clips, with the ffmpeg binary from
- * `ffmpeg-static`, so nothing has to be installed on the host. Every call
- * works in its own temp directory and removes it afterwards.
+ * Frame extraction for finished clips, and stand-in clips for the mock and
+ * the seed, with the ffmpeg binary from `ffmpeg-static`, so nothing has to be
+ * installed on the host. Every call works in its own temp directory and
+ * removes it afterwards.
+ *
+ * No `@/` imports here: scripts/seed.mjs runs this under plain Node (with the
+ * react-server condition, so `server-only` above resolves to nothing).
  */
+
+const CLIP_SIZES = {
+  "480p": { "16:9": [854, 480], "9:16": [480, 854], "1:1": [480, 480] },
+  "720p": { "16:9": [1280, 720], "9:16": [720, 1280], "1:1": [720, 720] },
+};
+
+/** Pixel size of a stand-in clip; anything unknown falls back to 480p 16:9. */
+export function clipSize(aspectRatio, resolution = "480p") {
+  return CLIP_SIZES[resolution]?.[aspectRatio] ?? CLIP_SIZES["480p"][aspectRatio] ?? [854, 480];
+}
 
 const TIMEOUT_MS = 60_000;
 
@@ -78,12 +92,18 @@ export function extractLastFrame(video) {
 }
 
 /**
- * Renders a stand-in clip for the mock provider, `seconds` long at `width` x
- * `height`. Given a start frame it opens exactly on that image and slowly
- * pushes in, so a mock "Continue" visibly starts where its parent ended.
- * Without one (text-to-video) it's a drifting gradient in `colors`.
+ * Renders a stand-in clip, `seconds` long at `width` x `height`, for the mock
+ * provider and the seed. Given a start frame it opens exactly on that image
+ * and slowly pushes in, so a mock "Continue" visibly starts where its parent
+ * ended. Without one (text-to-video) it's a drifting gradient in `colors`.
  */
-export function renderMockClip({ seconds, width, height, startFrame, colors }) {
+export function renderMockClip({
+  seconds,
+  width,
+  height,
+  startFrame,
+  colors = ["3b2a20", "e8735a", "9e8c7d"],
+}) {
   const fps = 24;
   const frames = Math.round(seconds * fps);
   return inTempDir(async (dir) => {

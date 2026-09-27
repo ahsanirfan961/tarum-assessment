@@ -163,7 +163,10 @@ Opens on the most recent project, matching the brief's returning user.
 
 `db:seed` loads the demo projects. It upserts, so running it again is safe;
 it resets the demo collections' names and cut but leaves generated work
-alone. After changing `src/lib/db/schema.js`, run `npm run db:generate` to
+alone. The demo video takes get real clips: the seed renders each one with
+ffmpeg from its photo and stores it in MinIO like a generated take, so it
+needs MinIO up too (`docker compose up -d` starts both). Clips already stored
+are kept, so later runs are quick. After changing `src/lib/db/schema.js`, run `npm run db:generate` to
 write a new migration into `drizzle/`.
 
 The mock renders video too: each take "renders" for about eight seconds,
@@ -270,10 +273,6 @@ it starts from the beginning with no reset to coordinate.
   deliverable and is not built yet.
 - The product thinking document is not written yet.
 - Reference edges drawn across collections are omitted.
-- The seed's video clips pointed at Google's public sample bucket, which is no
-  longer public, so the demo "Pour Sequence" collection doesn't play and its
-  takes can't be continued (New take still works). Generated video is
-  unaffected.
 - **Download cut** records real playback via `captureStream()`/`MediaRecorder`,
   so it takes as long as the cut runs and produces a `.webm`. Genuine
   server-side or `ffmpeg.wasm` concatenation would be faster and give an
